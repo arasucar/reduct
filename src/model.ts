@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { parse, stringify } from 'yaml';
 
 export type Identity = { name: string; email: string; source?: string };
+export type PassageSelection = { start: number; end: number; source: string };
 export type Meta = {
   schema_version: number; id: string; type: string; title: string; parent?: string;
   status?: string; related?: string[]; [key: string]: unknown;
@@ -50,8 +51,12 @@ export function messages(doc: Doc): (Message & { body: string })[] {
   });
 }
 export function anchor(doc: Doc, review: Doc): { state: 'current' | 'moved' | 'outdated' | 'document'; offset?: number } {
-  const quote = review.meta.quote;
+  const quote = review.meta.quote_source ?? review.meta.quote;
   if (typeof quote !== 'string' || !quote) return { state: review.meta.target_hash === doc.hash ? 'document' : 'outdated' };
+  const start = review.meta.quote_start, end = review.meta.quote_end;
+  if (review.meta.target_hash === doc.hash && Number.isInteger(start) && Number.isInteger(end) && doc.body.slice(start as number, end as number) === quote) return { state: 'current', offset: start as number };
+  // A surviving duplicate cannot establish that the reviewed occurrence survived.
+  if (review.meta.quote_source !== undefined && review.meta.target_hash !== doc.hash && review.meta.quote_unique !== true) return { state: 'outdated' };
   let count = 0, offset = -1, pos = 0;
   while ((pos = doc.body.indexOf(quote, pos)) !== -1) { count++; offset = pos; pos += Math.max(1, quote.length); }
   if (count !== 1) return { state: 'outdated' };

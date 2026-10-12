@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Doc, Identity, Message } from '../src/model';
+import type { Doc, Identity, Message, PassageSelection } from '../src/model';
 import './style.css';
 import { discussionReference } from './discussionReference';
 import { RevisionHistory } from './RevisionHistory';
@@ -14,6 +14,7 @@ import { Notifications, actionableNotifications, type Notification } from './Not
 import { visibleTreeRecords, closedWorkStatuses } from '../src/tree';
 import type { BriefState, WorkOverview as WorkSummary } from '../src/workflow';
 import { briefPrepared } from '../src/document-content';
+import { selectedPassage } from './passageSelection';
 
 type Thread = Doc & { messages: (Message & { body:string })[]; anchor:{state:string} };
 type Workspace = { workOverviews?:Record<string,WorkSummary>; briefStates?:Record<string,BriefState>; docs:Doc[]; threads:Thread[]; errors:string[]; identity:Identity|null; repo:string; token:string };
@@ -28,11 +29,12 @@ function App() {
   const [error,setError]=useState(''); const [notice,setNotice]=useState('');
   useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),6000);return()=>clearTimeout(timer);},[notice]);
   const [busy,setBusy]=useState(false);
-  const [composer,setComposer]=useState<{quote:string;hash:string}|null>(null); const [comment,setComment]=useState('');
+  const [composer,setComposer]=useState<{quote:string;hash:string;selection?:PassageSelection;selectionUnique?:boolean}|null>(null); const [comment,setComment]=useState('');
   const [profile,setProfile]=useState<Identity|null>(null);
   const [showProfile,setShowProfile]=useState(false);
   const [profileName,setProfileName]=useState(''); const [profileEmail,setProfileEmail]=useState('');
   const [selection,setSelection]=useState('');
+  const selectedSource=useRef<(PassageSelection & {quote:string;hash:string})|undefined>(undefined);
   const [copyText,setCopyText]=useState('');
   const [openedHash,setOpenedHash]=useState('');
   const [readingNotice,setReadingNotice]=useState('');
@@ -55,7 +57,7 @@ function App() {
   }
   useEffect(()=> { refresh().catch(e=>setError(e.message)); const timer=setInterval(()=>refresh().catch(e=>setError(e.message)),3000); return ()=>clearInterval(timer); },[]);
   useEffect(()=> { try { setProfile(JSON.parse(localStorage.getItem(`reduct-profile:${workspace?.repo}`)??'null')); } catch { setProfile(null); } },[workspace?.repo]);
-  useEffect(()=> { setComposer(null);setComment('');setSelection(''); },[selected,tab,focusThread]);
+  useEffect(()=> { setComposer(null);setComment('');setSelection('');selectedSource.current=undefined; },[selected,tab,focusThread]);
   const doc=workspace?.docs.find(d=>d.meta.id===selected);
   const workOverview=workspace?.workOverviews?.[selected];
   const briefState=workspace?.briefStates?.[selected];
@@ -92,8 +94,10 @@ function App() {
   function startComment(quote=selection) {
     if(!identity) { setShowProfile(true);return; }
     if(!doc)return;
-    if(quote&&!doc.body.includes(quote)) { setError('That selection includes formatting. Select a plain-text passage, or leave a document-level comment.');return; }
-    setComposer({quote,hash:doc.hash});setComment('');
+    const passage=quote&&selectedSource.current?.quote===quote?selectedSource.current:undefined;
+    if(quote&&!passage) { setError('Select a passage within the document before commenting.');return; }
+    if(passage&&passage.hash!==doc.hash) { setError('The document changed. Select the passage again before commenting.');return; }
+    setComposer({quote,hash:doc.hash,...(passage?{selection:{start:passage.start,end:passage.end,source:passage.source},selectionUnique:doc.body.indexOf(passage.source)===doc.body.lastIndexOf(passage.source)}:{})});setComment('');
   }
   function choose(id:string) {
     return navigate({id,tab:'document'});
@@ -145,17 +149,17 @@ function App() {
             {doc.meta.type==='snapshot'&&<div className="saved-version-note">Saved version · <button className="document-link" onClick={()=>choose(String(doc.meta.parent))}>Open current document</button></div>}
             {doc.meta.type==='implementation'&&briefState&&briefState.drift!=='current'&&<div className="drift-warning" role="status"><strong>Brief needs updating</strong><p>{briefState.drift==='missing'?'The source plan or saved version is missing. Ask your planning agent to restore it.':'The plan changed after this brief was prepared. Ask your planning agent to update the instructions before implementation.'}</p>{sourcePlan&&<button className="button" onClick={()=>choose(sourcePlan.meta.id)}>Read current plan</button>}</div>}
             {!!doc.meta.owner_decision&&<details className="owner-decision"><summary>Decision recorded from your agent conversation</summary><blockquote>{String((doc.meta.owner_decision as {instruction?:string}).instruction??'Instruction not recorded')}</blockquote><small>Recorded by {String((doc.meta.owner_decision as {recorded_by?:string}).recorded_by??'agent')}. This is a local decision record, not an authenticated transcript.</small></details>}
-            {selection&&['module','feature','work','plan','analysis','implementation'].includes(doc.meta.type)&&<div className="selection-toolbar"><span>Passage selected</span><button className="button primary" onClick={()=>startComment()}>Comment on selection</button><button className="quiet" onClick={()=>setSelection('')}>Clear</button></div>}
-            <div className="markdown" ref={documentRef} onMouseUp={()=> { const s=window.getSelection();if(s&&s.rangeCount&&documentRef.current?.contains(s.getRangeAt(0).commonAncestorContainer))setSelection(s.toString().trim()); }}><DocumentMarkdown doc={doc} docs={workspace.docs} choose={choose}/></div>
+            <div className="markdown" ref={documentRef} onMouseUp={()=> { const s=window.getSelection();if(s&&documentRef.current){const passage=selectedPassage(documentRef.current,s,doc.body);selectedSource.current=passage?{...passage,hash:doc.hash}:undefined;setSelection(passage?.quote??'');} }}><DocumentMarkdown doc={doc} docs={workspace.docs} choose={choose}/></div>
             {!!linkedWork.length&&<section className="linked-work"><h2>Work affecting this feature</h2>{linkedWork.map(w=>{const item=workspace.docs.find(d=>d.meta.id===w.id)!;return <button className="linked-work-card" key={w.id} onClick={()=>choose(w.id)}><Icon name="work"/><span><strong>{item.meta.title}</strong><small>{item.meta.parent===selected?'Primary home here':'Linked from another module or feature'} · {statusInfo({...item.meta,status:w.stage}).label}</small></span><span>↗</span></button>;})}</section>}
             {!!related.length&&<section className="related-features"><h2>Related features</h2>{related.map(r=><button key={r.meta.id} className="button" onClick={()=>choose(r.meta.id)}><Icon name={r.meta.type}/> {r.meta.title} ↗</button>)}</section>}
           </>}
         </main><aside className="review-pane">{doc.meta.type==='work'&&workOverview&&<WorkContext summary={workOverview} docs={workspace.docs} choose={choose}/>}{doc.meta.type==='work'&&workOverview&&<AffectedFeatures summary={workOverview} docs={workspace.docs} choose={choose}/>}<div className="review-heading"><div><h2>Discussion</h2></div><span className="count">{threads.length}</span></div>
+          {selection&&['module','feature','work','plan','analysis','implementation'].includes(doc.meta.type)&&<div className="selection-toolbar"><span>Passage selected</span><button className="button primary" onClick={()=>startComment()}>Comment on selection</button></div>}
 
           {!threads.length&&!composer&&<div className="review-empty"><span>◌</span><h3>No discussions yet</h3><p>Select a passage or ask a question about this document.</p></div>}
           {threads.map(thread=><Review key={thread.meta.id} repo={workspace.repo} thread={thread} busy={busy} focused={focusThread===thread.meta.id} onRead={markReplyRead} act={body=>{if(!identity){setShowProfile(true);return;}return perform(()=>post('reply',{id:thread.meta.id,hash:thread.hash,body,author:identity}),'Follow-up saved. The planning agent can respond to this discussion.');}}/>)}
           {['module','feature','work','plan','analysis','implementation'].includes(doc.meta.type)&&<button className="button primary discussion-clarification" onClick={()=>startComment('')}>Add comment</button>}
-          {composer&&<form className="comment-composer" onSubmit={e=>{e.preventDefault();perform(async()=>{await post('comment',{id:doc.meta.id,hash:composer.hash,body:comment,quote:composer.quote,author:identity});setComposer(null);setSelection('');setComment('');},'Comment saved. Tell your planning agent which document has your feedback.');}}><strong>{composer.quote?'Comment on passage':'Document comment'}</strong>{doc.hash!==composer.hash&&<div className="comment-update"><p>The document changed while you were writing. Your question is preserved.</p><button className="button" type="button" onClick={()=>{if(composer.quote&&!doc.body.includes(composer.quote)){setComment('About an earlier passage:\n> '+composer.quote+'\n\n'+comment);setComposer({quote:'',hash:doc.hash});}else setComposer({...composer,hash:doc.hash});}}>Attach question to the latest version</button></div>}{composer.quote&&<blockquote>{composer.quote}</blockquote>}<textarea autoFocus aria-label="Your comment" placeholder="Add a comment, question, or mismatch you noticed…" value={comment} onChange={e=>setComment(e.target.value)} required/><div className="composer-actions"><button type="button" className="quiet" onClick={()=>setComposer(null)}>Cancel</button><button className="button primary" disabled={busy||!comment.trim()}>Post comment</button></div></form>}
+          {composer&&<form className="comment-composer" onSubmit={e=>{e.preventDefault();perform(async()=>{await post('comment',{id:doc.meta.id,hash:composer.hash,body:comment,quote:composer.quote,selection:composer.selection,author:identity});setComposer(null);setSelection('');setComment('');},'Comment saved. Tell your planning agent which document has your feedback.');}}><strong>{composer.quote?'Comment on passage':'Document comment'}</strong>{doc.hash!==composer.hash&&<div className="comment-update"><p>The document changed while you were writing. Your question is preserved.</p><button className="button" type="button" onClick={()=>{const source=composer.selection?.source??composer.quote;const start=source?doc.body.indexOf(source):-1;if(source&&(composer.selectionUnique===false||start<0||doc.body.indexOf(source,start+source.length)!==-1)){setComment('About an earlier passage:\n> '+composer.quote+'\n\n'+comment);setComposer({quote:'',hash:doc.hash});}else setComposer({...composer,hash:doc.hash,...(source?{selection:{start,end:start+source.length,source}}:{})});}}>Attach question to the latest version</button></div>}{composer.quote&&<blockquote>{composer.quote}</blockquote>}<textarea autoFocus aria-label="Your comment" placeholder="Add a comment, question, or mismatch you noticed…" value={comment} onChange={e=>setComment(e.target.value)} required/><div className="composer-actions"><button type="button" className="quiet" onClick={()=>setComposer(null)}>Cancel</button><button className="button primary" disabled={busy||!comment.trim()}>Post comment</button></div></form>}
 
         </aside></div>
       </>}

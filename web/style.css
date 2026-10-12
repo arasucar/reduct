@@ -113,7 +113,9 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .thread-file { margin-top: 13px; border-top: 1px solid rgb(237, 240, 231); padding-top: 9px; color: rgb(153, 165, 140); font-size: 9px; }
 .thread-file summary { cursor: pointer; }
 .thread-file code { display: block; margin-top: 8px; white-space: normal; line-height: 1.7; }
-.selection-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; background: rgb(232, 239, 220); padding: 10px; border-radius: 6px; font-size: 11px; }
+.selection-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 16px 0; background: rgb(232, 239, 220); padding: 10px; border-radius: 6px; font-size: 11px; }
+.selection-toolbar > span { flex: 1; min-width: 0; }
+.selection-toolbar > .button { padding: 8px; font-size: 11px; }
 .editor-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .editor textarea { width: 100%; min-height: 65vh; padding: 20px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.8; border: 1px solid rgb(212, 221, 198); border-radius: 6px; color: rgb(73, 91, 56); background: rgb(255, 255, 255); resize: vertical; }
 .toast { position: fixed; right: 24px; bottom: 24px; z-index: 1000; display: flex; align-items: flex-start; gap: 16px; width: max-content; max-width: min(420px, calc(100vw - 32px)); padding: 14px 16px; border: 1px solid currentColor; border-radius: 8px; box-shadow: 0 8px 28px #26321d24; font-size: 12px; line-height: 1.6; }

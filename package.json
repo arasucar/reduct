@@ -1,6 +1,6 @@
 {
   "name": "@arasucar/reduct",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "dev": "node --import tsx src/cli.ts ui",
@@ -24,7 +24,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.0.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "micromark-util-decode-string": "^2.0.1"
   },
   "description": "Keep product documentation, change plans, and discussions alongside your code. Includes a local browser UI and agent CLI.",
   "engines": {

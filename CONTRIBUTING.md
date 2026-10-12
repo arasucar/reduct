@@ -17,6 +17,20 @@ Initialize a disposable application directory with `npm run cli -- init --repo /
 
 `npm run dev` runs the CLI against the built reader. Run `npm run build` after changing the web UI, then reload the browser. The reader uses port 4310 by default; pass `--port 4311` to use another port.
 
+### Use Reduct to develop Reduct
+
+Run the reader from this checkout against its own product workspace:
+
+```sh
+npm run cli -- init --repo .
+npm run build
+npm run dev -- --repo . --port 4311
+```
+
+Skip initialization if `.reduct/` already exists. Initialization asks for confirmation and creates an empty map. The `--repo` option accepts any application directory; `--port` lets the development reader run alongside an installed release.
+
+Give agents `npm run cli --` as the command prefix for record operations, for example `npm run cli -- check --repo .`. From outside the checkout, use `npm --prefix /absolute/path/to/reduct run cli -- check --repo /absolute/path/to/application`. This keeps development on the local source even when the published `reduct` command is installed globally.
+
 ## Source layout
 
 | Location | Responsibility |

@@ -6,7 +6,7 @@ import { compareLines } from './compare.js';
 import { inspectBrief, summarizeWork } from './workflow.js';
 import { planText, markdownSection, briefPrepared } from './document-content.js';
 import { closedWorkStatuses } from './tree.js';
-import { appendMessage, decode, encode, hash, identityValid, messages, Problem, type Doc, type Identity, type Message, type Meta } from './model.js';
+import { appendMessage, decode, encode, hash, identityValid, messages, Problem, type Doc, type Identity, type Message, type Meta, type PassageSelection } from './model.js';
 
 export class Store {
   root: string;
@@ -133,15 +133,18 @@ export class Store {
     await this.write(relative,encode({schema_version:1,id,type,title:title.trim(),...(parent?{parent:parent.meta.id}:{}),status:'draft',...(type==='work'?{work_kind:workKind,workflow_mode:workflowMode}:{}),...source},body),null);
     return this.get(id);
   }
-  async comment(id: string, expected: string, text: string, quote: string, author: Identity, actor: 'human' | 'agent' = 'human', agentName?: string) {
+  async comment(id: string, expected: string, text: string, quote: string, author: Identity, actor: 'human' | 'agent' = 'human', agentName?: string, selection?: PassageSelection) {
     if (!identityValid(author) || (actor === 'agent' && !agentName)) throw new Problem('An author name and email (and agent name for agent replies) are required');
     const target = await this.get(id);
     if (target.hash !== expected) throw new Problem('Document changed; reload before commenting', 409);
     if (!['module','feature','work','plan','analysis','implementation'].includes(target.meta.type)) throw new Problem('This record cannot receive comments');
-    if (typeof quote !== 'string' || quote.length > 10000 || (quote && !target.body.includes(quote))) throw new Problem('Selected passage is not in this document');
+    if (typeof quote !== 'string' || quote.length > 10000) throw new Problem('Invalid selected passage');
+    if (selection !== undefined) {
+      if (!selection || !quote.trim() || !Number.isInteger(selection.start) || !Number.isInteger(selection.end) || selection.start < 0 || selection.end <= selection.start || selection.end > target.body.length || typeof selection.source !== 'string' || selection.source.length > 10000 || target.body.slice(selection.start, selection.end) !== selection.source) throw new Problem('Selected passage is not in this document');
+    } else if (quote && !target.body.includes(quote)) throw new Problem('Selected passage is not in this document');
     const version = await this.snapshot(id,expected,'comment');
     const reviewId = `REVIEW-${randomUUID()}`;
-    const meta: Meta = { schema_version: 1, id: reviewId, type: 'review', title: `Review of ${target.meta.title}`, parent: id, target_id: id, target_path: target.path, target_hash: target.hash, target_revision:version.meta.id, quote, intent:'clarification', status: 'open', messages: [] };
+    const meta: Meta = { schema_version: 1, id: reviewId, type: 'review', title: `Review of ${target.meta.title}`, parent: id, target_id: id, target_path: target.path, target_hash: target.hash, target_revision:version.meta.id, quote, ...(selection ? {quote_source: selection.source, quote_unique: target.body.indexOf(selection.source) === target.body.lastIndexOf(selection.source), quote_start: selection.start, quote_end: selection.end} : {}), intent:'clarification', status: 'open', messages: [] };
     const thread = decode(encode(meta, ''), '');
     const message: Message = { id: `MSG-${randomUUID()}`, author, actor_kind: actor, ...(agentName ? { agent_name: agentName } : {}), created_at: new Date().toISOString(), kind: 'comment' };
     const relative = path.join(path.dirname(target.path), 'reviews', `${reviewId}.md`);

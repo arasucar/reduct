@@ -45,7 +45,7 @@ Then give your agent this request:
 
 > Read the Initial product mapping section in `.reduct/agent/README.md`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
 
-Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.1.1`.
+Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.1.2`.
 
 <details>
 <summary>Installation troubleshooting</summary>
@@ -247,7 +247,7 @@ Read feature descriptions against the actual application and comment on mismatch
 
 ### Ask for clarification
 
-Select plain text and choose **Comment on selection**, or use **Add comment** for the entire document. Reduct preserves the reviewed version and quoted passage in a Markdown thread. If the passage changes later, the thread retains its original context.
+Select a passage, including bold text, links, or inline code, and choose **Comment on selection**, or use **Add comment** for the entire document. Reduct preserves the reviewed version and quoted passage in a Markdown thread. If the passage changes later, the thread retains its original context.
 
 Your agent answers, clarifies the prose when useful, and resolves addressed feedback with a rationale. Use **Ask a follow-up** to continue an addressed thread; posting reactivates it. A clarification comment does not authorize implementation or establish new product intent.
 
@@ -361,6 +361,19 @@ Use `###` headings for behavior, scope, decisions, and questions inside Work's P
 
 IDs in YAML frontmatter are stable identifiers rather than filenames. Use CLI creation to generate records and paths. Re-read hashes before mutation to detect concurrent changes. Preserve schema, attribution, reasons, retained versions, and discussion history when editing Markdown directly; run `check` afterward.
 
+### Document formatting
+
+Use a small, consistent Markdown vocabulary in product records so documents stay readable and passages can be commented on:
+
+- Plain paragraphs and ATX headings (`#`, `##`, `###`), preserving required headings such as `## Plan`.
+- Flat bullet or numbered lists, with occasional bold emphasis.
+- Single-line inline code for paths, identifiers, and short expressions; ordinary Markdown links for documents and web pages.
+- Only when needed, fenced code blocks starting at column one, with spaces for indentation and no surrounding list or blockquote.
+
+Write files with LF line endings and spaces instead of tabs. Keep inline formatting within one line and source references in a separate section. Prefer prose or short lists over tables. Avoid blockquotes, nested lists, task checkboxes, HTML, images, diagrams, and decorative formatting in new agent-authored records.
+
+Planning agents apply this convention when creating or revising current drafts. Implementation agents follow it when updating product records and outcomes. Preserve YAML frontmatter, stable IDs, evidence, and exact owner quotations. Do not restyle retained versions or rewrite discussion history to meet this convention. Existing documents remain readable; these are authoring guidelines rather than a new validation rule.
+
 ### Planning procedure
 
 1. Read the application instructions and inspect current sources. Update relevant feature facts and create/reuse one Work with a primary home and all affected-feature links.
@@ -380,7 +393,7 @@ Completed Work hides from the default reader tree but remains in history. Retain
 
 ### Commands
 
-Run the globally installed `reduct` command from the application root; always select the documentation workspace with --repo. The application/source repository may differ from a staged workspace. Initialization does not require --agent; other mutation commands require --agent NAME. --reason TEXT explains the update in the reader UI.
+For an installed release, run the global `reduct` command from the application root. When developing Reduct itself, run the source CLI with `npm run cli --` from the Reduct checkout (or `npm --prefix /path/to/reduct run cli --` from another directory) instead of the global command. Replace `reduct` in the examples below with that source invocation. Always select the documentation workspace with `--repo`. The application/source repository may differ from a staged workspace. Initialization does not require --agent; other mutation commands require --agent NAME. --reason TEXT explains the update in the reader UI.
 
 Read current IDs/hashes:
 
@@ -427,6 +440,28 @@ npm test
 npm run build
 npm run dev -- --repo /path/to/application
 ```
+
+### Develop Reduct against a chosen workspace
+
+The development commands run the source checkout. Pass `--repo` after npm's `--` separator to choose the application directory whose `.reduct/` records you want to read:
+
+```sh
+npm run build
+npm run dev -- --repo /absolute/path/to/application --port 4311
+```
+
+To use Reduct to document its own development, target the Reduct checkout with `--repo .`. If that workspace has not been initialized, run `npm run cli -- init --repo .` first and confirm the prompt. Initialization starts with an empty product map; use the [initial mapping request](#initial-product-mapping) to populate it.
+
+Agents working on this checkout should also use the source CLI:
+
+```sh
+npm run cli -- check --repo .
+npm run cli -- read RECORD-ID --repo .
+```
+
+From another directory, use `npm --prefix /absolute/path/to/reduct run dev -- --repo /absolute/path/to/application --port 4311`, or replace `dev` with `cli` and supply the desired command. Use absolute workspace paths with `--prefix`, since npm runs the script from the checkout.
+
+Rebuild after UI changes and reload the reader. CLI changes are read from `src/` on the next invocation. This workflow does not require publishing or replacing the globally installed package.
 
 To build a local release archive, run `npm run release:local`. This builds and packs the current version into `releases/`. Install the generated archive with `npm install --global /absolute/path/to/arasucar-reduct-VERSION.tgz`, replacing the path and version with the actual filename.
 

@@ -2,6 +2,7 @@ import { createContext, useContext, useState } from 'react';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Doc } from '../src/model';
+import { passagePositions } from './passageSelection';
 function Reference({href,children,repository}:{href:string;children:React.ReactNode;repository?:string}) {
   const [expanded,setExpanded]=useState(false);
   const commit=href.startsWith('commit:');
@@ -24,5 +25,5 @@ function DocumentLink({href,children}:{href?:string;children?:React.ReactNode}) 
 }
 const components={a:DocumentLink};
 export function DocumentMarkdown(context:Context) {
-  return <DocumentContext.Provider value={context}><Markdown remarkPlugins={[remarkGfm]} urlTransform={url=>/^(code|commit):/.test(url)?url:defaultUrlTransform(url)} components={components}>{context.doc.body}</Markdown></DocumentContext.Provider>;
+  return <DocumentContext.Provider value={context}><Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[passagePositions]} urlTransform={url=>/^(code|commit):/.test(url)?url:defaultUrlTransform(url)} components={components}>{context.doc.body}</Markdown></DocumentContext.Provider>;
 }

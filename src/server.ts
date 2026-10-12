@@ -42,7 +42,7 @@ export async function serve(store: Store, port = 4310) {
         if(!['/api/comment','/api/reply'].includes(url.pathname))throw new Problem('The reader interface can write clarification comments only. Use agent commands for document and lifecycle updates.',403);
         if (!input || typeof input.id !== 'string' || typeof input.hash !== 'string') throw new Problem('Missing record ID or hash');
         let result;
-        if(url.pathname==='/api/comment')result=await store.comment(input.id,input.hash,input.body,input.quote??'',store.gitIdentity()??input.author);
+        if(url.pathname==='/api/comment')result=await store.comment(input.id,input.hash,input.body,input.quote??'',store.gitIdentity()??input.author,'human',undefined,input.selection);
         else {
           if(input.kind!==undefined&&input.kind!=='reply')throw new Problem('Readers can follow up on clarification; agents address and resolve threads.',403);
           result=await store.followUp(input.id,input.hash,input.body,store.gitIdentity()??input.author);

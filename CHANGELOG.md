@@ -2,6 +2,21 @@
 
 Release notes for `@arasucar/reduct`. Versions before 1.0 may change the CLI, library, or workspace format; check the notes before upgrading.
 
+## 0.1.2 — 2026-10-12
+
+### Changed
+
+- Selection controls appear inline at the top of Discussion, without a Clear button.
+- Documentation explains how to run the source checkout against a chosen workspace.
+- Agent guides define a minimal Markdown convention for product records, with LF line endings and simple formatting for passage comments.
+
+### Fixed
+
+- Passage comments support formatted selections and retain readable quotes with exact Markdown source ranges. Existing comments remain compatible.
+- Repeated passages stay outdated after edits when their original occurrence cannot be established.
+- Code selections preserve nested indentation and handle inline newline padding, tabs, and Windows line endings.
+- Passage mapping handles CRLF paragraphs, multiline inline code in blockquotes, and partially consumed indentation tabs in fenced blocks.
+
 ## 0.1.1 — 2026-10-12
 
 ### Changed
