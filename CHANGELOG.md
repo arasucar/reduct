@@ -9,7 +9,6 @@ Release notes for `@arasucar/reduct`. Versions before 1.0 may change the CLI, li
 - Refreshed the package README with a direct quick start, current installation instructions, and collapsible troubleshooting.
 - Added contributor documentation, release guidance, and package keywords.
 - Organized CLI help and made unknown commands and missing option values report actionable errors.
-- Added CI checks for tests, builds, and package contents on Node.js 20.19, 22, and 24.
 
 ## 0.1.0
 
