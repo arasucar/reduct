@@ -6,6 +6,8 @@ Release notes for `@arasucar/reduct`. Versions before 1.0 may change the CLI, li
 
 ### Changed
 
+- Dropped Node.js 20 support; the minimum is now Node.js 22.12, with Node.js 24 LTS recommended.
+
 - Refreshed the package README with a direct quick start, current installation instructions, and collapsible troubleshooting.
 - Added contributor documentation, release guidance, and package keywords.
 - Organized CLI help and made unknown commands and missing option values report actionable errors.

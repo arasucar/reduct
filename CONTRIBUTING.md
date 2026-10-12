@@ -4,7 +4,7 @@ Reduct stores product documentation, plans, and discussion history in the applic
 
 ## Local development
 
-Use Node.js 20.19 or later and npm. From a source checkout:
+Use Node.js 24 LTS and npm for development. The package requires Node.js 22.12 or later. From a source checkout:
 
 ```sh
 npm ci

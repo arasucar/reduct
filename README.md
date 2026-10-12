@@ -27,7 +27,7 @@ Install once and use across Swift/Xcode, JavaScript, Python, and other repositor
 
 ## Installation
 
-Requires **Node.js 20.19 or later** and npm. See [npm's installation guide](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/) if you need a runtime.
+Requires **Node.js 22.12 or later** and npm. **Node.js 24 LTS is recommended.** See [npm's installation guide](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/) if you need a runtime.
 
 ```sh
 npm install --global @arasucar/reduct

@@ -28,7 +28,7 @@
   },
   "description": "Keep product documentation, change plans, and discussions alongside your code. Includes a local browser UI and agent CLI.",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.12.0"
   },
   "bin": {
     "reduct": "./lib/cli.js"
