@@ -2,30 +2,32 @@
 
 # Reduct
 
-**Product context, plans, and conversations—kept with your code.**
+**Product context, plans, and discussions, kept with your code.**
 
 A local product workspace for developers working with AI agents.
 
-[Install](#installation) · [Map your app](#initial-product-mapping) · [Use the UI](#using-the-reader) · [Agent roles](#agent-roles) · [CLI workflow](#agent-workflow)
+[![npm version](https://img.shields.io/npm/v/%40arasucar%2Freduct)](https://www.npmjs.com/package/@arasucar/reduct)
+[![Node.js](https://img.shields.io/node/v/%40arasucar%2Freduct)](https://www.npmjs.com/package/@arasucar/reduct)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/arasucar/reduct/blob/main/LICENSE)
+
+[Quick start](#installation) · [Reader guide](#using-the-reader) · [Agent reference](#agent-roles) · [Contributing](https://github.com/arasucar/reduct/blob/main/CONTRIBUTING.md)
 
 </div>
 
 ## What it does
 
-Reduct gives you a browser UI to read your product map, discuss changes, and follow implementation history. Agents maintain the underlying Markdown in your application's `.reduct/` directory.
+Reduct keeps your product map, change plans, and discussions in Markdown inside your repository. Read and review them in a local browser UI while your agents maintain the records alongside the code.
 
-- **Map the product:** organize existing capabilities into modules and features, with source references and explicit unknowns.
-- **Plan changes:** keep the requested change, proposed behavior, and decisions together in Work.
-- **Discuss in context:** attach comments to documents or selected passages and compare saved versions.
-- **Hand off implementation:** copy a settled brief to an implementation agent, then retain the delivered outcome and checks.
+- **Map the product.** Organize existing capabilities into modules and features, with source references and explicit unknowns.
+- **Plan changes.** Keep the requested change, proposed behavior, and decisions together in a Work record.
+- **Discuss in context.** Comment on documents or selected passages and compare retained versions.
+- **Hand off implementation.** Copy a settled brief to an implementation agent, then retain the delivered outcome and verification results.
 
-Install the tool once on your machine and use it across Swift/Xcode, JavaScript, Python, and other repositories. Your application needs no npm manifest or Reduct dependency. The UI runs locally; you contact agents yourself.
-
-**Contents:** [Installation](#installation) · [Initialize](#initialize-an-application) · [Launch](#launch-the-reader) · [Update](#update-or-uninstall) · [Product mapping](#initial-product-mapping) · [Reader guide](#using-the-reader) · [Agent roles](#agent-roles) · [Record workflow](#agent-workflow) · [Development](#development-and-release)
+Install once and use across Swift/Xcode, JavaScript, Python, and other repositories. Your application needs no npm manifest or Reduct dependency. The UI runs locally; you give requests and handoffs directly to your agents.
 
 ## Installation
 
-Install once per machine, then initialize each application repository. The public package is `@arasucar/reduct`. Once the first release is published, install and launch it with:
+Requires **Node.js 20.19 or later** and npm. See [npm's installation guide](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/) if you need a runtime.
 
 ```sh
 npm install --global @arasucar/reduct
@@ -35,68 +37,38 @@ reduct init
 reduct ui
 ```
 
-The detailed steps and troubleshooting follow.
+Initialization asks for confirmation before creating `.reduct/` and adding a marked section to your application's `AGENTS.md`. It preserves existing instructions and starts with an empty product map.
 
-### Prerequisites
+Open the URL printed by `reduct ui`, usually [http://127.0.0.1:4310](http://127.0.0.1:4310). Keep the terminal running; Ctrl+C stops the reader.
 
-Reduct requires Node.js 20.19 or later and npm. From a terminal, run:
+Then give your agent this request:
+
+> Read the Initial product mapping section in `.reduct/agent/README.md`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
+
+Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.1.1`.
+
+<details>
+<summary>Installation troubleshooting</summary>
+
+### Command not found
+
+Open a new terminal, then check your active Node installation and global package location:
 
 ```sh
 node --version
-npm --version
-```
-
-If either command is missing, install Node.js and npm using a Node version manager following [npm's installation guidance](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/). Choose a supported Node release meeting Reduct's minimum version. Follow your machine's existing runtime policy if Node is already managed for you.
-
-### Install globally
-
-Install the public package once the release is available:
-
-```sh
-npm install --global @arasucar/reduct
-```
-
-The unscoped npm package `reduct` is unrelated to this project; use the full scoped name above. The installed executable remains `reduct`.
-
-This command can run from any directory. It installs the CLI, built reader, bundled instructions, and runtime dependencies in npm's global installation location. It does not add dependencies to your application. Users do not need the Reduct source checkout or its build tools.
-
-To install a specific release, append its version, for example `npm install --global @arasucar/reduct@0.1.0`. For a local archive, follow [Build a release archive](#build-a-release-archive), then run `npm install --global /absolute/path/to/arasucar-reduct-0.1.0.tgz` with the generated file's actual path. See [npm's global installation documentation](https://docs.npmjs.com/downloading-and-installing-packages-globally/).
-
-### Verify the command
-
-```sh
-reduct version
-```
-
-The command prints the installed version. It works from any directory and requires no initialized workspace, running reader, or agent name.
-
-Your terminal must have Node and npm's global executable directory on its `PATH`. A configured Node version manager usually handles this. Global installation is associated with the active Node installation and npm prefix; switching Node versions may require installing Reduct again under that version.
-
-#### If `reduct` is not found
-
-Open a new terminal and try again. If it still fails, check:
-
-```sh
 npm list --global --depth=0
 npm prefix --global
 ```
 
-Confirm this project's package is listed. On macOS/Linux, the executable directory is the printed prefix followed by `/bin`. On Windows, it is the printed prefix itself. That directory must be on `PATH`. See [npm's installation locations](https://docs.npmjs.com/cli/configuring-npm/folders/).
+Confirm `@arasucar/reduct` is installed. On macOS/Linux, npm's executable directory is the printed prefix followed by `/bin`; on Windows, it is the prefix itself. Ensure that directory is on your `PATH`. See [npm's installation locations](https://docs.npmjs.com/cli/configuring-npm/folders/).
 
-For the current macOS/Linux terminal, you can test with:
+A Node version manager usually configures this for you. Switching Node installations may require reinstalling Reduct. Agents must also check command availability in their own execution environment.
 
-```sh
-export PATH="$(npm prefix --global)/bin:$PATH"
-reduct version
-```
+### Installation permissions
 
-If that works, add the actual executable directory to your shell's startup configuration. For example, for macOS zsh, add `export PATH="/actual/npm/prefix/bin:$PATH"` to `~/.zprofile`, replacing the path with your prefix, and open a new terminal. For bash, use the appropriate profile or startup file for your environment. On Windows, add the printed prefix to your user Path environment variable and open a new terminal.
+For an `EACCES` error, use a Node version manager or a user-owned global installation directory following [npm's permissions guidance](https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally/).
 
-If `node` is also missing, repair the Node installation or its PATH first. A global package still needs its Node runtime. Agents must check command availability in their own execution environment as well as the user's terminal; a sandbox, different user account, or another machine may have a different PATH.
-
-#### Permissions errors
-
-For an `EACCES` error, npm recommends using a Node version manager or a user-owned global installation directory. Follow [npm's permissions troubleshooting](https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally/). Avoid making `sudo` the default installation step. If you change npm's prefix, ensure its executable directory is also on PATH as described above.
+</details>
 
 ## Initialize an application
 
@@ -138,7 +110,13 @@ For multiple applications, run separate reader processes with different ports an
 
 ## Update or uninstall
 
-Install the newer verified package or archive globally, stop any running readers, and restart them. In each initialized repository, have your agent sync the bundled instructions:
+Update the global installation, then stop and restart running readers:
+
+```sh
+npm install --global @arasucar/reduct@latest
+```
+
+In each initialized repository, have your agent sync the bundled instructions:
 
 ```sh
 reduct sync --repo . --agent "Planning agent"
@@ -439,32 +417,28 @@ Use snapshots for additional agent checkpoints. Direct Markdown edits remain pos
 
 ## Development and release
 
-### Work on Reduct
+See [CONTRIBUTING.md](https://github.com/arasucar/reduct/blob/main/CONTRIBUTING.md) for the source layout, local development, checks, and release procedure. See [CHANGELOG.md](https://github.com/arasucar/reduct/blob/main/CHANGELOG.md) for release notes.
+
+To work on Reduct from a source checkout:
 
 ```sh
-npm install
-npm run build
+npm ci
 npm test
+npm run build
 npm run dev -- --repo /path/to/application
 ```
 
-The build checks TypeScript, builds the reader, emits the library and declarations, and marks the CLI executable. Build output and example workspaces are excluded from Git.
-
-### Build a release archive
-
-From the Reduct checkout with its development dependencies installed:
-
-```sh
-npm run release:local
-```
-
-This builds and packs the current version into `releases/`. Rebuild after changes so the archive includes current code and guides. To deliberately advance the version first, run `npm version patch --no-git-tag-version` (or choose the appropriate version increment).
-
-The package includes the CLI, library, built UI, README, and documentation. Consumers do not need this checkout or its build tools. The npm package identity is `@arasucar/reduct`; publishing is configured for public access. The project uses the MIT license; authenticate the npm account before publishing. Inspect the archive's contents before release. Use the [installation instructions](#installation) to install the result globally.
+To build a local release archive, run `npm run release:local`. This builds and packs the current version into `releases/`. Install the generated archive with `npm install --global /absolute/path/to/arasucar-reduct-VERSION.tgz`, replacing the path and version with the actual filename.
 
 ### Use the JavaScript library
 
-Install the verified package or archive as a local dependency in the consuming JavaScript project. Global installation exposes a CLI, but does not make library imports available to local JavaScript code.
+Install Reduct as a local dependency in the consuming JavaScript project:
+
+```sh
+npm install @arasucar/reduct
+```
+
+Global installation exposes the CLI; library imports require a local dependency.
 
 Import the scoped package:
 

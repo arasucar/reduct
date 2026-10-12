@@ -8,8 +8,16 @@ import { syncWorkspace } from './upgrade.js';
 import { version } from './version.js';
 import { serve } from './server.js';
 import { messages } from './model.js';
+import { cliHelp } from './help.js';
 const args=process.argv.slice(2);
-function option(name:string,fallback=''){const i=args.indexOf(`--${name}`);return i<0?fallback:args[i+1]??fallback;}
+function option(name: string, fallback = '') {
+  const index = args.indexOf(`--${name}`);
+  if (index < 0) return fallback;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) throw new Error(`Provide a value for --${name}. Run reduct --help for usage.`);
+  return value;
+}
+try {
 const command=args[0]??'help';
 const agent=option('agent');
 const store=new Store(option('repo',process.cwd()),agent||undefined,option('reason',`Agent command: ${command}`));
@@ -31,8 +39,8 @@ async function confirmInit() {
     return false;
   } finally {input.close();}
 }
-try{
-  if(command==='--version'||command==='version')console.log(version);
+  if(command==='help'||command==='--help'||command==='-h'||args.includes('--help')||args.includes('-h'))console.log(cliHelp);
+  else if(command==='--version'||command==='version')console.log(version);
   else if(command==='sync'){requireAgent();const result=await syncWorkspace(store.repo);console.log(`Workspace guides synced to Reduct ${result.version}.`);if(result.updated.length)console.log(`Updated: ${result.updated.join(', ')}`);if(result.skipped.length)console.log(`Preserved local changes: ${result.skipped.join(', ')}`);}
   else if(command==='init'){if(await confirmInit()){await init(store.repo);console.log(`Created ${store.root}`);}else console.log('Initialization cancelled. No files were changed.');}
   else if(command==='ui'){const port=Number(option('port','4310'));if(!Number.isInteger(port)||port<0||port>65535)throw new Error('Invalid port');const server=await serve(new Store(store.repo),port);const address=server.address();console.log(`Reduct reader UI: http://127.0.0.1:${typeof address==='object'&&address?address.port:port}\nWorkspace: ${store.repo}`);}
@@ -56,5 +64,5 @@ try{
     else if(['reply','resolve','reopen'].includes(action)){requireAgent();const doc=await store.get(id);const expected=option('hash');if(!expected)throw new Error('Provide the thread --hash you read.');result(await store.reply(id,expected,await fileText(),action as 'reply'|'resolve'|'reopen',owner(),'agent',agent));}
     else throw new Error('Use review list|reply|resolve|reopen');
   }
-  else console.log('Reduct\n\nSetup: init\nRead: version, ui, read ID, check, context ID, briefing ID, compare ID --revision REV, review list [ID]\nAgent writes (require --agent NAME): sync, create TYPE --title TITLE --parent ID, write ID --body-file PATH --hash HASH, submit-review ID --hash HASH, snapshot ID --hash HASH, update-work ID --hash HASH --status STATE --workflow simple|extended, refresh-brief-source ID --hash HASH --plan-hash HASH, record-approval ID --hash HASH --owner-instruction-file PATH, record-handoff ID --hash HASH --revision REV --owner-instruction-file PATH, complete ID --hash HASH --verification passed|pending|accepted_limitations --feature-updates-file PATH, review reply|resolve|reopen THREAD --hash HASH --body-file PATH\nUse --repo PATH for every command. Add --reason TEXT to explain document changes.');
+  else throw new Error(`Unknown command: ${command}. Run reduct --help for available commands.`);
 }catch(error){console.error((error as Error).message);process.exitCode=1;}

@@ -1,6 +1,6 @@
 {
   "name": "@arasucar/reduct",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "node --import tsx src/cli.ts ui",
@@ -26,7 +26,7 @@
     "react-markdown": "^10.0.0",
     "remark-gfm": "^4.0.1"
   },
-  "description": "Repository-native feature documentation, planning, and discussion tooling.",
+  "description": "Keep product documentation, change plans, and discussions alongside your code. Includes a local browser UI and agent CLI.",
   "engines": {
     "node": ">=20.19.0"
   },
@@ -45,7 +45,9 @@
     "lib",
     "dist",
     "docs/*.md",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md"
   ],
   "publishConfig": {
     "access": "public",
@@ -59,5 +61,14 @@
   "bugs": {
     "url": "https://github.com/arasucar/reduct/issues"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "documentation",
+    "product-planning",
+    "ai-agents",
+    "cli",
+    "markdown",
+    "developer-tools",
+    "local-first"
+  ]
 }
