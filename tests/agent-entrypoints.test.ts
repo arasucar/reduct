@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { initFixture as init } from './helpers.js';
+
+test('agent entrypoints preserve application rules and briefings point to files without embedding plans', async t => {
+  const repo=await fs.mkdtemp(path.join(os.tmpdir(),'reduct-entrypoints-'));
+  t.after(()=>fs.rm(repo,{recursive:true,force:true}));
+  await fs.writeFile(path.join(repo,'AGENTS.md'),'# Existing application rules\nKeep the original validation restrictions.\n');
+  const store=await init(repo);
+  assert.ok((await fs.readFile(path.join(repo,'AGENTS.md'),'utf8')).startsWith('# Existing application rules'));
+  assert.ok((await fs.readFile(path.join(store.root,'AGENTS.md'),'utf8')).includes('planning and documentation agent'));
+  const feature=await store.create('feature','Language','MODULE-gamma');
+  const work=await store.create('work','Add a language',feature.meta.id);
+  const plan=await store.create('plan','Review language',work.meta.id);
+  const brief=await store.create('implementation','Implement language',work.meta.id);
+  const request=await store.shortBriefing(feature.meta.id,feature.hash);
+  assert.ok(request.text.includes(path.join(store.root,feature.path)));
+  assert.ok(request.text.includes(path.join(store.root,'AGENTS.md')));
+  assert.ok(!request.text.includes(feature.body));
+  assert.ok(request.text.length<1000);
+  await assert.rejects(store.shortBriefing(feature.meta.id,'stale'),/changed/);
+  assert.ok((await store.shortBriefing(brief.meta.id)).text.includes('Do not execute this draft'));
+  const saved=await store.saveBody(brief.meta.id,'# Implement language\n\nAdd the settled language choice.\n',brief.hash);
+  const approved=await store.readyBrief(saved.meta.id,saved.hash,{name:'Owner',email:'owner@example.test'},'Approve this implementation brief.');
+  const handoff=await store.shortBriefing(approved.meta.id);
+  assert.ok(handoff.text.includes('Saved version:'));
+  assert.ok(handoff.text.includes('affected feature records'));
+  assert.ok(!handoff.text.includes(plan.body));
+});

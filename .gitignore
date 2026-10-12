@@ -1,0 +1,22 @@
+# Installed dependencies and build output
+node_modules/
+dist/
+lib/
+releases/
+*.tgz
+
+# Local example workspaces and generated test artifacts
+examples/
+output/
+.playwright-cli/
+
+# Workspace temporary files
+**/.reduct/.locks/
+**/.reduct/.tmp-*
+
+# Local machine files
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example

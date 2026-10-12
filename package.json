@@ -1,0 +1,63 @@
+{
+  "name": "@arasucar/reduct",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --import tsx src/cli.ts ui",
+    "cli": "node --import tsx src/cli.ts",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.lib.json && node scripts/package-build.mjs",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "prepack": "npm run build",
+    "release:local": "node scripts/release-local.mjs"
+  },
+  "dependencies": {
+    "yaml": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^7.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.0.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "description": "Repository-native feature documentation, planning, and discussion tooling.",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "bin": {
+    "reduct": "./lib/cli.js"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "dist",
+    "docs/*.md",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arasucar/reduct.git"
+  },
+  "homepage": "https://github.com/arasucar/reduct#readme",
+  "bugs": {
+    "url": "https://github.com/arasucar/reduct/issues"
+  },
+  "license": "MIT"
+}
