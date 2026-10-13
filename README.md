@@ -45,7 +45,7 @@ Then give your agent this request:
 
 > Read `.reduct/agent/README.md` and `reduct guide mapping`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
 
-Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.1.2`.
+Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.2.0`.
 
 <details>
 <summary>Installation troubleshooting</summary>
