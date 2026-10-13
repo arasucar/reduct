@@ -43,7 +43,7 @@ Open the URL printed by `reduct ui`, usually [http://127.0.0.1:4310](http://127.
 
 Then give your agent this request:
 
-> Read the Initial product mapping section in `.reduct/agent/README.md`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
+> Read `.reduct/agent/README.md` and `reduct guide mapping`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
 
 Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.1.2`.
 
@@ -89,7 +89,7 @@ Continue? [y/N]
 
 Only `y` or `yes` confirms. Enter, another answer, or end of input cancels without changing files. No agent information is required. Existing application instructions are retained. If `AGENTS.md` is a symlink, writing through it updates its target.
 
-Initialize once per repository. Initialization starts with empty modules and refuses to overwrite an existing `.reduct/`. Ask your agent to follow the [initial mapping directive](#initial-product-mapping), available in its installed `.reduct/agent/README.md`, to populate and validate module and feature records. Initialization does not automatically inspect your code or dispatch an agent.
+Initialize once per repository. Initialization starts with empty modules and refuses to overwrite an existing `.reduct/`. Ask your agent to follow the [initial mapping directive](#initial-product-mapping), available through `reduct guide mapping` or `.reduct/agent/reference/README.md`, to populate and validate module and feature records. Initialization does not automatically inspect your code or dispatch an agent.
 
 ## Launch the reader
 
@@ -129,7 +129,7 @@ Sync preserves locally customized guides and product records; review any skipped
 
 Give your agent this request after initialization:
 
-> Read the Initial product mapping section in `.reduct/agent/README.md`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
+> Read `.reduct/agent/README.md` and `reduct guide mapping`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
 
 ### Scope and starting point
 
@@ -151,7 +151,8 @@ application/
     ├── AGENTS.md                  # Planning role
     ├── tool.json                  # Version and managed-guide hashes
     ├── help/how-to-use.md          # Reader guide
-    ├── agent/README.md             # Installed copy of this README
+    ├── agent/README.md             # Compact agent instructions
+    ├── agent/reference/README.md   # Complete installed reference
     └── modules/                   # Initially empty
 ```
 
@@ -343,7 +344,22 @@ Procedures and commands for agents maintaining the records.
 
 ### Resolve context
 
-A short request should identify a stable record ID or Markdown path and the owner's intention. Locate its parent records, linked features, supporting documents, and open reviews. Use `context` or `briefing RECORD-ID --short --repo PATH` for compact context; omit `--short` for an expanded briefing. The reader's Copy for implementation action supplies the brief's body.
+A short request should identify a stable record ID or Markdown path and the owner's intention. Use `list` to find existing records, then `context RECORD-ID --compact --repo PATH` for the target and a complete related-record manifest. Supporting bodies are not included: read applicable parent constraints, linked features, active Work, supporting evidence, and open reviews before decisions. Batch required reads with `read-many ID,ID --format text`. `briefing RECORD-ID --short` supplies a request pointer; omit `--short` for an expanded briefing. The reader's Copy for implementation action supplies the brief's body.
+
+### Efficient agent access
+
+The installed `agent/README.md` is a compact entrypoint. Retrieve deeper instructions only when needed with `guide mapping`, `guide roles`, `guide planning-procedure`, `guide completion`, `guide formatting`, or `guide commands`. The complete reference remains in `agent/reference/README.md` and `guide reference`. Run `sync --agent NAME` after upgrading to update unmodified managed guides; local customizations and deleted managed guides are preserved.
+
+- `list --search TEXT`, `--type TYPE`, `--parent ID`, and `--status STATE` return record metadata and section names without bodies. Snapshots, reviews, and guides are excluded unless their type is requested.
+- `read ID --format text` returns all metadata and the exact body without JSON escaping. JSON remains the default for compatibility. `read ID --section TITLE` returns one uniquely named ATX section and marks it as partial; its hash covers the whole record.
+- `read ID --if-changed HASH` returns an unchanged receipt when the whole-record hash matches. `read-many ID,ID --known-file PATH` batches reads using a JSON object of previously read IDs and hashes. Reuse only exact content already available in this session; reading a section does not establish knowledge of the whole record. Hashes do not establish that application sources are unchanged.
+- `context ID --compact --known-file PATH` omits an unchanged target body and marks unchanged related records. All related IDs, hashes, paths, and section names remain discoverable. Ordinary `context` retains its size limit with a complete manifest after truncation; `context ID --full` returns every selected body without truncation.
+- `review list ID --status open --compact` returns message bodies once, retaining all thread metadata and hashes. Read full open discussions before addressing feedback.
+- `compare ID --revision REV --changes-only --context-lines 3` retains all changes, nearby lines, version hashes, and omitted-line counts. Full comparisons remain available.
+- `patch ID --hash HASH --section TITLE --body-file PATH` replaces section contents while keeping its heading; replacing a parent section includes its subsections. Section operations reject HTML outside fenced code rather than guess its boundaries; read the full record and use an exact passage update. `--match-file PATH` instead selects a unique exact passage, including whitespace. Missing or ambiguous selections and stale hashes fail without saving. Patches use the same attribution, concurrency, history, and approval rules as full writes.
+- `hash ID,ID` checks current hashes without bodies. If a hash changed, reread and reconcile before editing; do not use a fresh hash to submit an old proposal.
+
+Keep temporary bodies and known-hash files outside `.reduct/`. Preserve settled findings and revise affected passages when evidence changes. Keep investigation evidence in optional Analysis, accepted behavior in Work's Plan, and delivered facts in Features; keep implementation briefs self-contained for handoff. Smaller reads and writes do not waive evidence, authorization, review, or completion requirements.
 
 ### Record conventions
 

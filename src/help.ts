@@ -12,11 +12,22 @@ Getting started
 
 Read and validate
   check                      Validate workspace records
-  read ID                    Read a record as JSON, including its hash
-  context ID                 Read related product and discussion context
+  guide [TOPIC]              Read agent instructions (default: compact guide)
+                             Topics: reference, mapping, roles, workflow, planning-procedure,
+                                     completion, formatting, commands
+  list [--type TYPE] [--parent ID] [--status STATE] [--search TEXT]
+                             Find records without reading their bodies
+  hash ID[,ID...]            Read current hashes without record bodies
+  read ID [--format text|json] [--section TITLE] [--if-changed HASH]
+                             Read a record (default: JSON), or one exact section
+  read-many ID[,ID...] [--format text|json] [--known-file PATH]
+                             Batch reads; skip bodies already read at those hashes
+  context ID [--compact | --full] [--known-file PATH]
+                             Full context, or target body plus related record index
   briefing ID [--short]      Prepare context for an agent
-  compare ID --revision REV  Compare a record with a retained version
-  review list [ID] [--status open|resolved]
+  compare ID --revision REV [--changes-only] [--context-lines N]
+                             Compare versions; optionally omit unchanged stretches
+  review list [ID] [--status open|resolved] [--compact]
 
 Agent commands (require --agent NAME)
   sync                       Update unmodified managed guides
@@ -25,6 +36,8 @@ Agent commands (require --agent NAME)
                              Work: --work-kind enhancement|bug|investigation|maintenance
                                    --workflow simple|extended
   write ID --hash HASH --body-file PATH
+  patch ID --hash HASH --body-file PATH (--section TITLE | --match-file PATH)
+                             Replace section contents or a unique exact passage
   submit-review ID --hash HASH
   snapshot ID --hash HASH
   update-work ID --hash HASH --status STATE [--workflow simple|extended]

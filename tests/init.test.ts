@@ -56,13 +56,14 @@ test('initialization creates guides and version metadata but no product records'
   const manifest=JSON.parse(await fs.readFile(path.join(store.root,'tool.json'),'utf8'));
   assert.equal(manifest.schema_version,1);
   const guide=await fs.readFile(path.join(store.root,'agent/README.md'),'utf8');
-  assert.equal(guide,await fs.readFile(new URL('../README.md',import.meta.url),'utf8'));
+  assert.equal(guide,await fs.readFile(new URL('../docs/AGENT_GUIDE.md',import.meta.url),'utf8'));
+  assert.equal(await fs.readFile(path.join(store.root,'agent/reference/README.md'),'utf8'),await fs.readFile(new URL('../README.md',import.meta.url),'utf8'));
   assert.equal(manifest.managed_files['agent/README.md'],hash(guide));
   const reader=state.docs.find(doc=>doc.meta.id==='GUIDE-ui')!;
   assert.match(reader.body,/Ask for clarification/);
   assert.doesNotMatch(reader.body,/## Development and release/);
   assert.equal(manifest.managed_files['help/how-to-use.md'],reader.hash);
-  assert.deepEqual(await fs.readdir(path.join(store.root,'agent')),['README.md']);
+  assert.deepEqual((await fs.readdir(path.join(store.root,'agent'))).sort(),['README.md','reference']);
   const module=await store.create('module','Orders');
   const feature=await store.create('feature','Order tracking',module.meta.id);
   assert.equal(feature.meta.parent,module.meta.id);

@@ -6,6 +6,7 @@ import { compareLines } from './compare.js';
 import { inspectBrief, summarizeWork } from './workflow.js';
 import { planText, markdownSection, briefPrepared } from './document-content.js';
 import { closedWorkStatuses } from './tree.js';
+import { recordIndex, readableRecord, section } from './agent-output.js';
 import { appendMessage, decode, encode, hash, identityValid, messages, Problem, type Doc, type Identity, type Message, type Meta, type PassageSelection } from './model.js';
 
 export class Store {
@@ -101,6 +102,24 @@ export class Store {
     if((['plan','implementation'].includes(meta.type)||(meta.type==='work'&&planText(doc)!==markdownSection(body,['plan'])))&&body!==doc.body){meta.status='draft';delete meta.approved_by;delete meta.approved_at;delete meta.approved_body_hash;}
     await this.write(doc.path, encode(meta, body), expected);
     return this.get(id);
+  }
+  async patchBody(id: string, expected: string, replacement: string, selection: { section: string } | { match: string }) {
+    const doc = await this.get(id);
+    if (doc.hash !== expected) throw new Problem('This file changed since you opened it. Reload before saving.', 409);
+    let start: number, end: number;
+    if ('section' in selection) {
+      const selected = section(doc.body, selection.section);
+      start = selected.content; end = selected.end;
+      replacement = `\n${replacement.trimEnd()}\n${end < doc.body.length ? '\n' : ''}`;
+    } else {
+      if (!selection.match) throw new Problem('Provide a nonempty exact passage');
+      start = doc.body.indexOf(selection.match);
+      if (start < 0) throw new Problem('Passage not found');
+      if (doc.body.indexOf(selection.match, start + 1) >= 0) throw new Problem('Passage is ambiguous');
+      end = start + selection.match.length;
+    }
+    // Reuse the canonical write path, including immutable-record and approval rules.
+    return this.saveBody(id, doc.body.slice(0, start) + replacement + doc.body.slice(end), expected);
   }
   async create(type: string, title: string, parentId?: string, workKind = 'enhancement', workflowMode = 'simple') {
     if (!['module','feature','work','plan','analysis','implementation'].includes(type) || typeof title !== 'string' || !title.trim() || title.length > 160) throw new Problem('Provide a record type and title.');
@@ -318,24 +337,52 @@ export class Store {
       `Read ${path.join(this.root,'AGENTS.md')}.`,
       `Target: ${path.join(this.root,doc.path)} (${doc.meta.id})`,
       `Version viewed: ${doc.hash}`,
-      `Read related context and ${detailed.openThreads} open discussion${detailed.openThreads===1?'':'s'}; update the relevant records and reply to addressed comments.`
+      `Use context ${doc.meta.id} --compact to locate related records; batch required reads with read-many --format text. Read ${detailed.openThreads} open discussion${detailed.openThreads===1?'':'s'}; update relevant records and reply to addressed comments.`
     ].join('\n') };
   }
-  async context(id: string) {
-    const { docs } = await this.load(); const doc = await this.get(id); const selected = new Map([[id, doc]]);
-    let cursor = doc;
+  async contextRecords(id: string, expanded = false) {
+    const { docs } = await this.load();
+    const matches=docs.filter(d=>d.meta.id===id);
+    if(matches.length!==1)throw new Problem(matches.length?'Duplicate record ID':'Record not found',matches.length?409:404);
+    const doc=matches[0],selected = new Map([[id, doc]]);
+    const primary=expanded&&doc.meta.type==='snapshot'?docs.find(d=>d.meta.id===doc.meta.parent)??doc:doc;
+    if(primary!==doc)selected.set(primary.meta.id,primary);
+    let cursor = primary;
     while (cursor.meta.parent && !selected.has(cursor.meta.parent)) { const parent = docs.find(d => d.meta.id === cursor.meta.parent); if (!parent) break; selected.set(parent.meta.id, parent); cursor = parent; }
     for (const d of [...selected.values()]) for (const related of d.meta.related ?? []) { const r = docs.find(x => x.meta.id === related); if (r) selected.set(related, r); }
+    if(expanded&&primary.meta.type==='plan')for(const sibling of docs.filter(d=>d.meta.parent===primary.meta.parent&&d.meta.type==='analysis'))selected.set(sibling.meta.id,sibling);
+    if(expanded&&['work','feature','module'].includes(primary.meta.type)) {
+      let frontier=[primary.meta.id];
+      for(let depth=0;depth<3;depth++) {
+        const children=docs.filter(d=>frontier.includes(d.meta.parent??'')&&['feature','work','plan','analysis'].includes(d.meta.type));
+        children.forEach(d=>selected.set(d.meta.id,d));frontier=children.map(d=>d.meta.id);
+      }
+    }
+    const featureIds=new Set([...selected.values()].filter(d=>d.meta.type==='feature').map(d=>d.meta.id));
     for(const work of docs.filter(d=>d.meta.type==='work'&&!closedWorkStatuses.includes(String(d.meta.status)))) {
       const summary=summarizeWork(work,docs);
-      if(work.meta.id===id||summary.affectedFeatureIds.includes(id)) {
+      if(work.meta.id===id||summary.affectedFeatureIds.includes(id)||(expanded&&(selected.has(work.meta.id)||summary.affectedFeatureIds.some(id=>featureIds.has(id))))) {
         selected.set(work.meta.id,work);
         for(const featureId of summary.affectedFeatureIds) { const feature=docs.find(d=>d.meta.id===featureId);if(feature)selected.set(featureId,feature); }
         for(const child of docs.filter(d=>d.meta.parent===work.meta.id&&['plan','analysis'].includes(d.meta.type)))selected.set(child.meta.id,child);
       }
     }
     for (const d of docs) if ((d.meta.parent === id && ['plan','analysis','task'].includes(d.meta.type)) || (d.meta.type === 'review' && selected.has(String(d.meta.target_id)) && d.meta.status === 'open')) selected.set(d.meta.id, d);
-    const content = [...selected.values()].map(d => `# ${d.meta.title}\nID: ${d.meta.id}\nFile: .reduct/${d.path}\n\n${d.body}`).join('\n\n---\n\n');
-    return content.length > 35000 ? content.slice(0,35000) + '\n\n[Context truncated at 35,000 characters. Open referenced files or request individual records for full content.]\n' : content;
+    return [...selected.values()];
+  }
+  async compactContext(id: string, known: Record<string, string> = {}) {
+    const records = await this.contextRecords(id,true);
+    const target = records.find(d => d.meta.id === id)!;
+    return [
+      '# Context manifest',
+      'All related records are listed with current hashes. Supporting bodies are not included. Read applicable constraints, affected features, active work, and open discussions before making decisions. Unchanged records may be reused only if their exact content is already available in this session.',
+      JSON.stringify(records.map(d => ({ ...recordIndex(d), available: known[d.meta.id] === d.hash ? 'unchanged' : d.meta.id === id ? 'included' : 'read_on_demand' }))),
+      ...(known[id] === target.hash ? [] : [readableRecord(target)])
+    ].join('\n\n');
+  }
+  async context(id: string, full = false) {
+    const records = await this.contextRecords(id);
+    const content = records.map(d => `# ${d.meta.title}\nID: ${d.meta.id}\nFile: .reduct/${d.path}\nHash: ${d.hash}\n\n${d.body}`).join('\n\n---\n\n');
+    return !full && content.length > 35000 ? content.slice(0,35000) + '\n\n[Context truncated at 35,000 characters. The final body may be partial. Read individual records or use context --full for complete content.]\n\nComplete record manifest:\n' + JSON.stringify(records.map(recordIndex)) : content;
   }
 }

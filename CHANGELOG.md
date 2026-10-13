@@ -2,6 +2,20 @@
 
 Release notes for `@arasucar/reduct`. Versions before 1.0 may change the CLI, library, or workspace format; check the notes before upgrading.
 
+## 0.2.0 — 2026-10-13
+
+- Compact agent entrypoint with the full installed reference and on-demand guide topics.
+- Filtered record discovery, batched and conditional reads, section reads, and hash-only checks.
+- Compact context manifests, deduplicated review output, and changes-only comparisons with full-output options retained.
+- Hash-guarded section and exact-passage updates using the existing write, attribution, and approval rules.
+- Truncated context includes the complete record manifest and an explicit full-content option.
+
+### Fixed
+
+- Section operations reject HTML outside fenced code to avoid unsafe section boundaries; exact-passage updates remain available.
+- Compact context retains historical Plan evidence and unresolved discussions, including snapshots.
+- The default guide command accepts shared options without interpreting them as a topic.
+
 ## 0.1.2 — 2026-10-12
 
 ### Changed

@@ -46,7 +46,7 @@ Give agents `npm run cli --` as the command prefix for record operations, for ex
 | `tests/` | CLI, workspace, discussion, and workflow regression tests |
 | `scripts/` | Package preparation and local release archives |
 
-The README is also installed as `.reduct/agent/README.md`. Its **Using the reader** section generates `.reduct/help/how-to-use.md`. Preserve that heading and review documentation changes as part of the product, since new and synced workspaces receive them.
+`docs/AGENT_GUIDE.md` is installed as the compact `.reduct/agent/README.md`; the full README is installed as `.reduct/agent/reference/README.md`. Its **Using the reader** section generates `.reduct/help/how-to-use.md`. Preserve reference headings used by `guide TOPIC` and review documentation changes as part of the product, since new and synced workspaces receive them.
 
 ## Proposing a change
 
@@ -61,6 +61,8 @@ npm test
 npm run build
 npm pack --dry-run
 ```
+
+After building, run `npm run benchmark:agent-access` for repeatable character-volume comparisons of agent guides, conditional reads, review output, local edits, and retained-version comparisons. The benchmark uses a disposable workspace, verifies preserved content, and makes no model calls. Character reductions do not establish token, quota, reasoning, or end-to-end quality improvements; evaluate those with the intended agent and representative tasks.
 
 The build checks TypeScript, builds the reader, emits the library and declarations, and marks the CLI executable. Generated `lib/`, `dist/`, and `releases/` directories are excluded from Git.
 

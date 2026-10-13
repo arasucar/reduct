@@ -63,3 +63,23 @@ test('sync adds an untracked guide and preserves custom or deleted managed copie
   const deleted=await syncWorkspace(repo);
   assert.ok(deleted.skipped.includes(relative));await assert.rejects(fs.access(target),{code:'ENOENT'});
 });
+
+test('an older full agent guide migrates to the compact entrypoint with a complete reference',async t=>{
+  const repo=await fs.mkdtemp(path.join(os.tmpdir(),'reduct-guide-migration-'));t.after(()=>fs.rm(repo,{recursive:true,force:true}));
+  const store=await init(repo);
+  const manifestPath=path.join(store.root,'tool.json'),manifest=JSON.parse(await fs.readFile(manifestPath,'utf8'));
+  const referencePath='agent/reference/README.md',guidePath='agent/README.md';
+  const full=await fs.readFile(path.join(store.root,referencePath),'utf8');
+  await fs.writeFile(path.join(store.root,guidePath),full);
+  manifest.managed_files[guidePath]=hash(full);delete manifest.managed_files[referencePath];
+  await fs.unlink(path.join(store.root,referencePath));
+  await fs.writeFile(manifestPath,JSON.stringify(manifest));
+  const before=(await store.load()).docs;
+  const migrated=await syncWorkspace(repo);
+  assert.ok(migrated.updated.includes(referencePath));assert.ok(migrated.updated.includes(guidePath));
+  assert.equal(await fs.readFile(path.join(store.root,referencePath),'utf8'),full);
+  const compact=await fs.readFile(path.join(store.root,guidePath),'utf8');
+  assert.ok(compact.length<full.length/3);
+  for(const doc of before)assert.equal((await store.get(doc.meta.id)).hash,doc.hash);
+  assert.deepEqual((await store.load()).errors,[]);
+});
