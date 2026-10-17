@@ -30,9 +30,10 @@ Read and validate
   review list [ID] [--status open|resolved] [--compact]
 
 Agent commands (require --agent NAME)
-  sync                       Update unmodified managed guides
+  sync                       Update managed guides and migrate legacy Work homes
   create TYPE --title TITLE [--parent ID]
                              Types: module, feature, work, analysis, implementation
+                             Work home: Module (--parent MODULE-ID); link affected Features separately
                              Work: --work-kind enhancement|bug|investigation|maintenance
                                    --workflow simple|extended
   write ID --hash HASH --body-file PATH

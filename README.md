@@ -45,7 +45,7 @@ Then give your agent this request:
 
 > Read `.reduct/agent/README.md` and `reduct guide mapping`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
 
-Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.2.0`.
+Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.2.1`.
 
 <details>
 <summary>Installation troubleshooting</summary>
@@ -123,7 +123,9 @@ reduct sync --repo . --agent "Planning agent"
 reduct version
 ```
 
-Sync preserves locally customized guides and product records; review any skipped files. Do not initialize again to update. To remove the global tool, use `npm uninstall --global @arasucar/reduct` to remove this package. Uninstalling the tool leaves each application's `.reduct/` records in place.
+Feature-owned Works from older workspaces are reparented to their Module by `reduct sync`. Their former Feature becomes an affected-feature link. IDs, document paths, child records, and retained history are preserved. Older callers supplying a Feature when creating Work are normalized to the same Module-owned structure.
+
+Sync preserves locally customized guides and document history; review any skipped files. Do not initialize again to update. To remove the global tool, use `npm uninstall --global @arasucar/reduct` to remove this package. Uninstalling the tool leaves each application's `.reduct/` records in place.
 
 ## Initial product mapping
 
@@ -236,7 +238,7 @@ Use [initial product mapping](#initial-product-mapping) for first setup and [age
 
 ### Find and read documents
 
-Modules contain features and Work. Work has a primary home and can link other affected features. Its Plan appears on the Work page alongside optional Analysis and a separate Implementation brief. For full document definitions, see the [record conventions](#record-conventions).
+Modules contain Features and Work directly. Work has one Module home and links affected Features within or across Modules; Features are not Work parents. Its Plan appears on the Work page alongside optional Analysis and a separate Implementation brief. For full document definitions, see the [record conventions](#record-conventions).
 
 - **Search and tree:** navigate the product map and linked capabilities.
 - **Breadcrumb and document path:** identify what you are reading and its file/version reference.
@@ -250,13 +252,13 @@ Read feature descriptions against the actual application and comment on mismatch
 
 Select a passage, including bold text, links, or inline code, and choose **Comment on selection**, or use **Add comment** for the entire document. Reduct preserves the reviewed version and quoted passage in a Markdown thread. If the passage changes later, the thread retains its original context.
 
-Your agent answers, clarifies the prose when useful, and resolves addressed feedback with a rationale. Use **Ask a follow-up** to continue an addressed thread; posting reactivates it. A clarification comment does not authorize implementation or establish new product intent.
+Your agent does the requested work, clarifies the prose when useful, and posts one informative answer that also marks the feedback addressed. Use **Ask a follow-up** to continue an addressed thread; posting reactivates it. A clarification comment does not authorize implementation or establish new product intent.
 
 The profile uses repository Git identity where available and a local browser fallback otherwise. It identifies comment authors rather than providing a remote login.
 
 ### Review and hand off a change
 
-Read the Plan in Work and give decisions directly to the planning agent. Once it has prepared a settled Implementation brief, **Copy for implementation** copies that document's Markdown. Manually pass it to your implementation agent; this handoff authorizes execution without another approval record. Copying alone does not launch an agent or record a handoff. Tell the planning agent which version you passed so it can retain the history.
+Read the Plan in Work and give decisions directly to the planning agent. Once it has prepared an Implementation brief for the agreed scope, **Copy for implementation** copies that document's Markdown. Manually pass it to your implementation agent; this handoff authorizes execution without another approval record. Copying alone does not launch an agent or record a handoff. Tell the planning agent which version you passed so it can retain the history.
 
 If the Plan changes, the UI flags a brief whose source no longer matches. Have the planning agent reconcile it before handing off revised instructions. During delivery, unresolved product or scope choices come back to you.
 
@@ -295,9 +297,9 @@ Start at `.reduct/`. The planning agent maintains product understanding and turn
 #### Responsibilities
 
 - **Understand and map:** inspect sources, relevant tests, documentation, and discussions. Explain existing capabilities, constraints, dependencies, and gaps with evidence. Use the [initial mapping directive](#initial-product-mapping) for the first product map.
-- **Analyze a request:** identify the problem, expected result, affected features, edge cases, and alternatives. Choose a sensible primary home and reuse existing Work where appropriate.
+- **Analyze a request:** identify the problem, expected result, affected features, edge cases, and alternatives. Choose a Module home and reuse existing Work where appropriate.
 - **Prepare a proposal:** make behavior, scope, tradeoffs, and unresolved decisions clear enough for the owner to assess. Use supporting analysis when it adds value.
-- **Address discussion:** answer questions, clarify prose, and resolve only addressed feedback while preserving its context and history.
+- **Address discussion:** do the requested work and use `review resolve` with one informative answer explaining the result or rationale. It posts the answer and marks the thread addressed. Use `review reply` only when feedback still needs work or an answer from the owner; preserve context and history.
 - **Prepare the handoff:** translate settled decisions into a self-contained Implementation brief and keep it aligned with its source Plan.
 - **Maintain context after delivery:** review reported outcomes and feature updates against the intended result, retaining deviations, uncertainties, and remaining concerns.
 
@@ -367,7 +369,7 @@ Keep temporary bodies and known-hash files outside `.reduct/`. Preserve settled 
 | --- | --- |
 | Module | Product domain, purpose, shared constraints, and boundaries |
 | Feature | Current behavior, evidence, source references, dependencies, and unknowns |
-| Work | Requested change, `## Plan`, primary home, affected features, lifecycle, outcome, and verification |
+| Work | Requested change, `## Plan`, Module home, affected-feature links, lifecycle, outcome, and verification |
 | Analysis | Optional findings, alternatives, and investigation evidence |
 | Implementation brief | Settled behavior, tasks, scope, acceptance criteria, and reporting destinations |
 | Review | Append-only clarification discussion tied to a reviewed version/passage |
@@ -392,16 +394,24 @@ Planning agents apply this convention when creating or revising current drafts. 
 
 ### Planning procedure
 
-1. Read the application instructions and inspect current sources. Update relevant feature facts and create/reuse one Work with a primary home and all affected-feature links.
+1. Read the application instructions and inspect current sources. Create/reuse one Work directly under its Module and link known affected Features. Missing or incomplete Feature documentation does not block starting Work; create or update those records as behavior is delivered.
 2. Choose Simple for a small repair or Extended for deeper investigation. Work kinds are enhancement, bug, investigation, and maintenance; Analysis is optional.
 3. Write the Plan and submit Work for review. Review milestones retain full versions; ordinary file edits appear in the reader automatically.
-4. Read open threads, clarify the document where needed, and reply with the change or rationale. A reader follow-up reactivates an addressed thread.
-5. Once decisions are settled, create an Implementation brief. Include exact Work and affected-feature IDs and file paths in its body so copied instructions have their reporting destinations. Remove unresolved “if approved” conditions.
-6. If the Plan changed, reconcile the brief's body before refreshing its source. Source refresh does not rewrite instructions. Only the Plan section is compared for source drift.
+4. Read open threads and do the requested work, clarifying the document where needed. Use `review resolve` with one informative answer explaining the result or rationale; this posts the answer and marks the thread addressed. Do not post a separate reply followed by a resolution summary. Use `review reply` only when feedback still needs work or an answer from the owner. A reader follow-up reactivates an addressed thread.
+5. Once the next concrete scope is settled, create an Implementation brief for that scope. Independent scope may proceed while unrelated questions remain open; explicitly exclude blocked scope. Include exact Work and affected-feature IDs and file paths in its body so copied instructions have their reporting destinations. Remove unresolved “if approved” conditions from the scope being handed off; reversible testing observations do not block handoff.
+6. If the Plan changed, reconcile the brief's body before refreshing its source. Source refresh does not rewrite instructions. Source drift compares implementation instructions in the Plan; updates limited to open questions, investigation notes, or testing observations do not invalidate the brief.
+
+Create Works directly under a Module. Link affected Features within or across Modules; Features are not Work parents. Missing or incomplete Feature documentation does not block starting a Work. Create or update Feature records as behavior is delivered, and link newly documented Features to the Work before completion.
+
+Planning should converge toward a concrete implementation. Record owner answers under Decisions and remove the questions they settle. Ask new owner questions only when the answer materially changes scope or essential behavior, protects data, or avoids a costly commitment. Separate Implementation blockers from Investigation notes, Agent choices, and Testing observations. State exactly which scope a blocker prevents; proceed with independent agreed scope while unrelated questions remain open. Use `needs_owner_decision` only when the next concrete change is blocked; keep `in_progress` when independent implementation continues.
+
+Choose routine technical details and reasonable defaults within the authorized scope. Keep investigation evidence under Investigation notes and record chosen implementation defaults under Agent choices; changes to those defaults must update the handoff instructions. Existing combined Investigation and agent choices sections remain part of drift checks. Do not require every interaction or edge case to be settled before implementation. Reversible details, such as an extreme-width toolbar fallback, belong in Testing observations: implement the agreed layout with a reasonable default, let the owner test it, and refine it through targeted adjustments. Follow the loop: initial implementation → owner testing → feedback → targeted adjustments.
+
+Keep shared decisions in one canonical Work or Analysis record and reference its stable ID and section from related Works. A copied implementation brief must still include the applicable settled instructions so it can be executed independently. Prepare the brief for the agreed scope that can proceed, explicitly excluding blocked scope; unrelated open questions do not prevent handoff. Source drift calls for reconciliation of changed instructions, not restarting planning or reopening settled decisions.
 
 ### Implementation and completion procedure
 
-For planned implementation, set Work to `in_progress` when starting. Follow the owner's handed-off version; flag material conflicts with newer instructions. Record delivered changes, deviations, and remaining work in Implementation outcome, and checks actually run in Verification results. Direct application changes reconcile feature records without requiring Work for each repair.
+For planned implementation, set Work to `in_progress` when starting. Create or update affected Feature records as behavior is delivered and link new records to the Work. Follow the owner's handed-off version; flag material conflicts with newer instructions. Record delivered changes, deviations, and remaining work in Implementation outcome, and checks actually run in Verification results. Direct application changes reconcile feature records without requiring Work for each repair.
 
 Review every affected feature against delivery. Supply its current hash and an update/no-change explanation when completing Work. Use `passed` for successful executed verification, `pending` for outstanding checks, or `accepted_limitations` with a direct owner instruction. Pending checks leave Work awaiting verification. Use `complete`; setting `completed` through `update-work` is rejected.
 
@@ -419,15 +429,18 @@ Read current IDs/hashes:
 
 Create/write/submit:
 
-    reduct create work --title "Repair" --parent FEATURE-ID --work-kind bug --workflow simple --agent "Planning agent" --reason "Owner requested analysis" --repo /path/to/docs-workspace
+    reduct create work --title "Repair" --parent MODULE-ID --work-kind bug --workflow simple --agent "Planning agent" --reason "Owner requested analysis" --repo /path/to/docs-workspace
     Write `## Plan` with `###` subsections in the work document.
     reduct write WORK-ID --hash HASH --body-file /path/to/body.md --agent "Planning agent" --reason "Clarified REVIEW-ID" --repo /path/to/docs-workspace
     reduct submit-review WORK-ID --hash HASH --agent "Planning agent" --repo /path/to/docs-workspace
 
-Reply/resolve (append Markdown; do not delete history):
+Answer addressed feedback with one message (append Markdown; do not delete history). `resolve` both posts the answer and marks the thread addressed; do not run `reply` first:
+
+    reduct review resolve REVIEW-ID --hash THREAD-HASH --body-file /path/to/answer.md --agent "Planning agent" --repo /path/to/docs-workspace
+
+Use `reply` only when feedback still needs work or an answer from the owner:
 
     reduct review reply REVIEW-ID --hash THREAD-HASH --body-file /path/to/reply.md --agent "Planning agent" --repo /path/to/docs-workspace
-    reduct review resolve REVIEW-ID --hash THREAD-HASH --body-file /path/to/resolution.md --agent "Planning agent" --repo /path/to/docs-workspace
 
 Prepare/reconcile/record explicit human instructions:
 

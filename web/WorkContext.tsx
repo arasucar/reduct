@@ -2,6 +2,7 @@ import type { Doc } from '../src/model';
 import type { WorkOverview as Summary } from '../src/workflow';
 import { briefPrepared } from '../src/document-content';
 import { RecordIcon } from './presentation';
+import Markdown from 'react-markdown';
 
 export function WorkContext({summary,docs,choose}:{summary:Summary;docs:Doc[];choose:(id:string)=>void}) {
   function card(label:string,type:string,ids:string[]) {
@@ -12,11 +13,13 @@ export function WorkContext({summary,docs,choose}:{summary:Summary;docs:Doc[];ch
     <h2>Work context</h2>
 
     <div className="workflow-documents">{card('Analysis','analysis',summary.analysisIds)}{card('Plan','plan',summary.planIds)}{card('Implementation brief','implementation',summary.briefIds)}</div>
+    {!!summary.blockers.length&&<section className="work-scope-notes"><strong>Implementation blockers</strong><small>Independent agreed scope can continue.</small>{summary.blockers.map(item=><Markdown key={item.documentId}>{item.text}</Markdown>)}</section>}
+    {!!summary.testingObservations.length&&<section className="work-scope-notes"><strong>Observe during testing</strong><small>These items do not block initial implementation.</small>{summary.testingObservations.map(item=><Markdown key={item.documentId}>{item.text}</Markdown>)}</section>}
     {summary.briefIds.map(id=>{const b=docs.find(d=>d.meta.id===id)!;const state=summary.briefStates[id];if(!briefPrepared(b))return null;return state.drift!=='current'?<div key={id} className="drift-warning"><strong>Brief needs updating</strong><p>{state.drift==='changed'?'The plan changed after this brief was prepared. Ask your planning agent to update the instructions before implementation.':'The source plan or saved version is missing. Ask your planning agent to restore it.'}</p><button className="document-link" onClick={()=>choose(id)}>Open brief</button></div>:null;})}
     {summary.handoffRevisionId&&<section className="handoff-summary"><strong>Implementation handoff</strong><p>Recorded {new Date(summary.handoffAt!).toLocaleString()}</p><button className="document-link" onClick={()=>choose(summary.handoffRevisionId!)}>Read the brief handed off</button></section>}
   </section>;
 }
 
 export function AffectedFeatures({summary,docs,choose}:{summary:Summary;docs:Doc[];choose:(id:string)=>void}) {
-  return <section className="affected-work discussion-features"><strong>Affected features</strong><div>{summary.affectedFeatureIds.map(id=>{const feature=docs.find(d=>d.meta.id===id);return feature?<button className="button" key={id} onClick={()=>choose(id)}>{feature.meta.title} ↗</button>:null;})}{!summary.affectedFeatureIds.length&&<p>No feature links recorded yet.</p>}</div></section>;
+  return <section className="affected-work discussion-features"><strong>Affected features</strong><div className="affected-feature-links">{summary.affectedFeatureIds.map(id=>{const feature=docs.find(d=>d.meta.id===id);return feature?<button className="button" key={id} title={feature.meta.title} onClick={()=>choose(id)}><span>{feature.meta.title}</span><span aria-hidden="true">↗</span></button>:null;})}{!summary.affectedFeatureIds.length&&<p>No feature links recorded yet.</p>}</div></section>;
 }

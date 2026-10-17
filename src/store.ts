@@ -99,7 +99,11 @@ export class Store {
     if (['review','snapshot'].includes(doc.meta.type)) throw new Problem('Use review actions; revision snapshots are read-only.');
     if (typeof body !== 'string' || body.length > 200000) throw new Problem('Invalid document body');
     const meta={...doc.meta};
-    if((['plan','implementation'].includes(meta.type)||(meta.type==='work'&&planText(doc)!==markdownSection(body,['plan'])))&&body!==doc.body){meta.status='draft';delete meta.approved_by;delete meta.approved_at;delete meta.approved_body_hash;}
+    if((['plan','implementation'].includes(meta.type)||(meta.type==='work'&&planText(doc)!==markdownSection(body,['plan'])))&&body!==doc.body) {
+      // Refining a Plan does not erase implementation or testing progress.
+      if(meta.type!=='work'||!['in_progress','awaiting_verification'].includes(String(meta.status)))meta.status='draft';
+      delete meta.approved_by;delete meta.approved_at;delete meta.approved_body_hash;
+    }
     await this.write(doc.path, encode(meta, body), expected);
     return this.get(id);
   }
@@ -123,8 +127,11 @@ export class Store {
   }
   async create(type: string, title: string, parentId?: string, workKind = 'enhancement', workflowMode = 'simple') {
     if (!['module','feature','work','plan','analysis','implementation'].includes(type) || typeof title !== 'string' || !title.trim() || title.length > 160) throw new Problem('Provide a record type and title.');
-    const allowed: Record<string,string[]> = { feature:['module'],work:['module','feature'],plan:['work'],analysis:['work'],implementation:['work'] };
-    const parent = parentId ? await this.get(parentId) : undefined;
+    const allowed: Record<string,string[]> = { feature:['module'],work:['module'],plan:['work'],analysis:['work'],implementation:['work'] };
+    let parent = parentId ? await this.get(parentId) : undefined;
+    // Older callers may supply a Feature; keep it as a link and use its Module as home.
+    const homeFeature=type==='work'&&parent?.meta.type==='feature'?parent:undefined;
+    if(homeFeature)parent=await this.get(homeFeature.meta.parent!);
     if (type === 'module' ? !!parent : !parent || !allowed[type]?.includes(parent.meta.type)) throw new Problem('Invalid parent for this record type');
     if(type==='work'&&!['enhancement','bug','investigation','maintenance'].includes(workKind))throw new Problem('Invalid work kind');
     if(type==='work'&&!['simple','extended'].includes(workflowMode))throw new Problem('Invalid workflow mode');
@@ -145,11 +152,11 @@ export class Store {
       const features=summarizeWork(parent!, (await this.load()).docs).affectedFeatureIds;
       const state=await this.load();
       const reporting=[`Work: ${path.join(this.root,parent!.path)} (${parent!.meta.id})`,...features.map(id=>{const feature=state.docs.find(d=>d.meta.id===id)!;return `Feature: ${path.join(this.root,feature.path)} (${id})`;})].join('\n');
-      body=`# ${title.trim()}\n\n## Accepted behavior\n\n[Write settled behavior here.]\n\n## Implementation tasks\n\n[Write concrete tasks here.]\n\n## Acceptance criteria\n\n[Write verification criteria here.]\n\n## Scope and exclusions\n\n[Write agreed scope here.]\n\n## Verification and reporting\n\n${reporting}\n\nRead the application repository's AGENTS.md and ${path.join(this.root,'agent/README.md')}. Follow its validation restrictions. When implementation starts, set the linked Work to in_progress. Record delivered changes and actual checks in that Work, and update each listed feature to describe delivered behavior. Keep verification checklists out of feature pages. Report deviations and unresolved checks; complete Work only through the documented completion workflow. Escalate discoveries requiring a product or scope decision.\n`;
+      body=`# ${title.trim()}\n\n## Accepted behavior\n\n[Write settled behavior here.]\n\n## Implementation tasks\n\n[Write concrete tasks here.]\n\n## Acceptance criteria\n\n[Write verification criteria here.]\n\n## Scope and exclusions\n\n[Write agreed scope here.]\n\n## Verification and reporting\n\n${reporting}\n\nRead the application repository's AGENTS.md and ${path.join(this.root,'agent/README.md')}. Follow its validation restrictions. When implementation starts, set the linked Work to in_progress. Record delivered changes and actual checks in that Work, and create or update affected Feature records to describe delivered behavior, linking new records to the Work. Missing or incomplete Feature documentation does not block starting implementation. Keep verification checklists out of feature pages. Report deviations and unresolved checks; complete Work only through the documented completion workflow. Ask the owner only when a discovery materially changes scope or essential behavior, risks data, or creates a costly commitment. Continue independent scope while a blocker is open. Use initial implementation, owner testing, feedback, and targeted adjustments to refine reversible details.\n`;
     }
-    if(type==='work')body=`# ${title.trim()}\n\n## Plan\n\n### Requested change\n\nDescribe the requested change.\n\n### Current and proposed behavior\n\nDescribe what changes and what stays the same.\n\n### Scope and expected result\n\nDefine the scope and expected result.\n\n### Open questions\n\nList unresolved decisions, or state none.\n`;
+    if(type==='work')body=`# ${title.trim()}\n\n## Plan\n\n### Requested change\n\nDescribe the requested change.\n\n### Current and proposed behavior\n\nDescribe what changes and what stays the same.\n\n### Scope and expected result\n\nDefine the scope and expected result.\n\n### Decisions\n\nRecord owner answers and settled behavior here; remove the questions they settle. Reference shared decisions by record ID and section.\n\n### Implementation blockers\n\nList only decisions that prevent the next concrete change, or state none. Identify the blocked scope and what can proceed independently.\n\n### Open questions\n\nAsk only questions whose answers materially change scope, essential behavior, data protection, or costly commitments; otherwise state none.\n\n### Investigation notes\n\nRecord technical investigation and supporting evidence.\n\n### Agent choices\n\nRecord chosen implementation defaults within scope; keep handoff instructions aligned when these change.\n\n### Testing observations\n\nRecord reversible details and edge cases to observe during owner testing; these do not block the initial implementation.\n`;
     if(type==='work')body+=`\n## Implementation outcome\n\nRecord delivered changes, deviations, and remaining work after implementation.\n\n## Verification results\n\nRecord checks actually run, outcomes, and checks still pending.\n`;
-    await this.write(relative,encode({schema_version:1,id,type,title:title.trim(),...(parent?{parent:parent.meta.id}:{}),status:'draft',...(type==='work'?{work_kind:workKind,workflow_mode:workflowMode}:{}),...source},body),null);
+    await this.write(relative,encode({schema_version:1,id,type,title:title.trim(),...(parent?{parent:parent.meta.id}:{}),status:'draft',...(type==='work'?{work_kind:workKind,workflow_mode:workflowMode,...(homeFeature?{affected_features:[homeFeature.meta.id]}:{})}:{}),...source},body),null);
     return this.get(id);
   }
   async comment(id: string, expected: string, text: string, quote: string, author: Identity, actor: 'human' | 'agent' = 'human', agentName?: string, selection?: PassageSelection) {
@@ -309,7 +316,7 @@ export class Store {
       `## Selected document\n\n${selected.body}`];
     if(focus.meta.type==='snapshot') parts.push('## Revision note\n\nThe selected document is a retained snapshot. Comments below target their original reviewed revisions and may concern a newer draft; reconcile them explicitly rather than modifying this snapshot.');
     parts.push('## Open review threads\n\n'+(reviews.length?reviews.map(r=>`### ${r.meta.id}\nFile: ${path.join(this.root,r.path)}\nTarget: ${r.meta.target_id}\nReviewed hash: ${r.meta.target_hash}\nThread hash: ${r.hash}\nOriginal passage: ${String(r.meta.quote||'(document-level comment)')}\n\n${messages(r).map(m=>`${m.kind.toUpperCase()} — ${m.actor_kind==='agent'?m.agent_name:m.author.name}\n${m.body}`).join('\n\n')}`).join('\n\n'): 'No open threads in the selected context.'));
-    parts.push('## Reporting\n\nUpdate the current draft when planning. Preserve review history; append a reply explaining each change and resolve only addressed feedback. Resolution is not approval. Keep accepted intent separate from observed implementation. Record source revisions and distinguish inspected tests from executed tests. Read the target project’s AGENTS.md before changing or running its application.');
+    parts.push('## Reporting\n\nCreate Works directly under Modules and link affected Features across Modules. Missing Feature documentation does not block starting Work. Record owner answers as decisions and remove settled questions. Ask only about material scope, behavior, data, or costly commitments; choose routine technical details within scope. Keep blockers separate from investigation and testing observations. Proceed with independent scope and refine reversible details through implementation, owner testing, feedback, and targeted adjustments. Keep shared decisions in one canonical record and reference them. Update the current draft when planning. Preserve review history. Once the requested work is done, use review resolve with one informative answer explaining the result or rationale; this both posts the answer and marks the thread addressed. Do not post a separate reply followed by a resolution summary. Use review reply only when feedback still needs work or an answer from the owner. Resolution is not approval. Keep accepted intent separate from observed implementation. Record source revisions and distinguish inspected tests from executed tests. Read the target project’s AGENTS.md before changing or running its application.');
     return { text:parts.join('\n\n'), hash:focus.hash, openThreads:reviews.length };
   }
   async shortBriefing(id: string, expected?: string) {
@@ -337,7 +344,7 @@ export class Store {
       `Read ${path.join(this.root,'AGENTS.md')}.`,
       `Target: ${path.join(this.root,doc.path)} (${doc.meta.id})`,
       `Version viewed: ${doc.hash}`,
-      `Use context ${doc.meta.id} --compact to locate related records; batch required reads with read-many --format text. Read ${detailed.openThreads} open discussion${detailed.openThreads===1?'':'s'}; update relevant records and reply to addressed comments.`
+      `Use context ${doc.meta.id} --compact to locate related records; batch required reads with read-many --format text. Read ${detailed.openThreads} open discussion${detailed.openThreads===1?'':'s'}; update relevant records and answer addressed comments with review resolve in one message. Use review reply only for discussion that remains open.`
     ].join('\n') };
   }
   async contextRecords(id: string, expanded = false) {

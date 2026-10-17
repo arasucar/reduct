@@ -37,3 +37,20 @@ test('the former parent type is rejected instead of being treated as a Module al
   assert.equal(feature.meta.parent,module.meta.id);
   assert.deepEqual((await store.load()).errors,[]);
 });
+
+test('Work always has a Module home and Feature documentation is optional at startup',async t=>{
+  const repo=await fs.mkdtemp(path.join(os.tmpdir(),'reduct-work-home-'));t.after(()=>fs.rm(repo,{recursive:true,force:true}));
+  const store=await init(repo);const module=await store.create('module','Orders');
+  const work=await store.create('work','New behavior',module.meta.id);
+  assert.equal(work.meta.parent,module.meta.id);
+  assert.ok(work.path.startsWith('modules/orders/work/'));
+  assert.ok(work.body.includes('### Implementation blockers'));
+  assert.ok(work.body.includes('### Testing observations'));
+  await store.updateWork(work.meta.id,work.hash,{workflow_mode:'simple',status:'in_progress',affected_features:[]});
+  const feature=await store.create('feature','Tracking',module.meta.id);
+  const linked=await store.create('work','Legacy caller',feature.meta.id);
+  assert.equal(linked.meta.parent,module.meta.id);
+  assert.deepEqual(linked.meta.affected_features,[feature.meta.id]);
+  assert.ok(linked.path.startsWith('modules/orders/work/'));
+  assert.deepEqual((await store.load()).errors,[]);
+});

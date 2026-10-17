@@ -43,6 +43,7 @@ function App() {
   const selected=route.id; const tab=route.tab; const focusThread=route.thread??'';
   function setTab(tab:Route['tab']) { navigate({...route,tab}); }
   const documentRef=useRef<HTMLDivElement>(null);
+  const selectedTreeRow=useRef<HTMLDivElement>(null);
   async function refresh() {
     const response=await fetch('/api/workspace');
     const data=await response.json(); if(!response.ok) throw new Error(data.error);
@@ -104,7 +105,24 @@ function App() {
   }
   const breadcrumbs:Doc[]=[]; let ancestor=doc; const seen=new Set();
   while(ancestor&&!seen.has(ancestor.meta.id)) { seen.add(ancestor.meta.id);breadcrumbs.unshift(ancestor);ancestor=workspace?.docs.find(d=>d.meta.id===ancestor!.meta.parent); }
+  const documentPath=breadcrumbs.map(d=>d.meta.id).join('/');
+  useEffect(()=>{
+    if(!doc||!workspace)return;
+    const parents=breadcrumbs.slice(0,-1);
+    const nextCollapsed=new Set(collapsed),nextExpanded=new Set(expandedFeatures);
+    for(const parent of parents) {
+      nextCollapsed.delete(parent.meta.id);
+      if(parent.meta.type==='feature')nextExpanded.add(parent.meta.id);
+    }
+    setCollapsed(nextCollapsed);setExpandedFeatures(nextExpanded);setSearch('');
+    if(breadcrumbs.some(d=>d.meta.type==='work'&&closedWorkStatuses.includes(String(d.meta.status))))setShowHistory(true);
+    try { localStorage.setItem(`reduct-tree:${workspace.repo}`,JSON.stringify({collapsed:[...nextCollapsed],expandedFeatures:[...nextExpanded]})); } catch {}
+    // Reveal once after navigation's expansion has rendered, not on manual toggles.
+    const frame=requestAnimationFrame(()=>selectedTreeRow.current?.scrollIntoView({block:'nearest'}));
+    return ()=>cancelAnimationFrame(frame);
+  },[documentPath,workspace?.repo]);
   const navigable=workspace?visibleTreeRecords(workspace.docs,showHistory).filter(d=>!['review','snapshot','task','guide'].includes(d.meta.type)&&!(d.meta.type==='plan'&&d.meta.status==='superseded')):[];
+  const treeSelection=[...breadcrumbs].reverse().find(d=>navigable.some(n=>n.meta.id===d.meta.id))?.meta.id;
   function toggleTree(d:Doc) {
     const nextCollapsed=new Set(collapsed),nextExpanded=new Set(expandedFeatures);
     const target=d.meta.type==='feature'?nextExpanded:nextCollapsed;
@@ -114,10 +132,11 @@ function App() {
   }
   function node(d:Doc,depth=0):React.ReactNode {
     const children=navigable.filter(c=>c.meta.parent===d.meta.id);
+    if(d.meta.type==='module')children.sort((a,b)=>Number(b.meta.type==='work')-Number(a.meta.type==='work'));
     const matches=(record:Doc):boolean=>record.meta.title.toLowerCase().includes(search.toLowerCase()) || navigable.some(c=>c.meta.parent===record.meta.id&&matches(c));
     if(search&&!matches(d))return null;
     const closed=(d.meta.type==='feature'?!expandedFeatures.has(d.meta.id):collapsed.has(d.meta.id))&&!search;
-    return <React.Fragment key={d.meta.id}><div className={`tree-row type-${d.meta.type} ${selected===d.meta.id?'active':''}`} style={{marginLeft:10+depth*15,paddingLeft:14}}>
+    return <React.Fragment key={d.meta.id}><div ref={treeSelection===d.meta.id?selectedTreeRow:undefined} className={`tree-row type-${d.meta.type} ${treeSelection===d.meta.id?'active':''}`} style={{marginLeft:10+depth*15,paddingLeft:14}}>
       <button className="tree-item" onClick={()=>choose(d.meta.id)}><Icon name={d.meta.type}/><span>{d.meta.title}{d.meta.type==='work'&&<small className="work-kind">{String(d.meta.work_kind??'enhancement')}</small>}</span></button>
       {!!children.length&&<button className="tree-toggle" aria-expanded={!closed} aria-label={`${closed?'Expand':'Collapse'} ${d.meta.title}`} onClick={()=>toggleTree(d)}>{closed?'›':'⌄'}</button>}
     </div>{!closed&&children.map(c=>node(c,depth+1))}</React.Fragment>;
@@ -150,7 +169,7 @@ function App() {
             {doc.meta.type==='implementation'&&briefState&&briefState.drift!=='current'&&<div className="drift-warning" role="status"><strong>Brief needs updating</strong><p>{briefState.drift==='missing'?'The source plan or saved version is missing. Ask your planning agent to restore it.':'The plan changed after this brief was prepared. Ask your planning agent to update the instructions before implementation.'}</p>{sourcePlan&&<button className="button" onClick={()=>choose(sourcePlan.meta.id)}>Read current plan</button>}</div>}
             {!!doc.meta.owner_decision&&<details className="owner-decision"><summary>Decision recorded from your agent conversation</summary><blockquote>{String((doc.meta.owner_decision as {instruction?:string}).instruction??'Instruction not recorded')}</blockquote><small>Recorded by {String((doc.meta.owner_decision as {recorded_by?:string}).recorded_by??'agent')}. This is a local decision record, not an authenticated transcript.</small></details>}
             <div className="markdown" ref={documentRef} onMouseUp={()=> { const s=window.getSelection();if(s&&documentRef.current){const passage=selectedPassage(documentRef.current,s,doc.body);selectedSource.current=passage?{...passage,hash:doc.hash}:undefined;setSelection(passage?.quote??'');} }}><DocumentMarkdown doc={doc} docs={workspace.docs} choose={choose}/></div>
-            {!!linkedWork.length&&<section className="linked-work"><h2>Work affecting this feature</h2>{linkedWork.map(w=>{const item=workspace.docs.find(d=>d.meta.id===w.id)!;return <button className="linked-work-card" key={w.id} onClick={()=>choose(w.id)}><Icon name="work"/><span><strong>{item.meta.title}</strong><small>{item.meta.parent===selected?'Primary home here':'Linked from another module or feature'} · {statusInfo({...item.meta,status:w.stage}).label}</small></span><span>↗</span></button>;})}</section>}
+            {!!linkedWork.length&&<section className="linked-work"><h2>Work affecting this feature</h2>{linkedWork.map(w=>{const item=workspace.docs.find(d=>d.meta.id===w.id)!;return <button className="linked-work-card" key={w.id} onClick={()=>choose(w.id)}><Icon name="work"/><span><strong>{item.meta.title}</strong><small>{statusInfo({...item.meta,status:w.stage}).label}</small></span><span>↗</span></button>;})}</section>}
             {!!related.length&&<section className="related-features"><h2>Related features</h2>{related.map(r=><button key={r.meta.id} className="button" onClick={()=>choose(r.meta.id)}><Icon name={r.meta.type}/> {r.meta.title} ↗</button>)}</section>}
           </>}
         </main><aside className="review-pane">{doc.meta.type==='work'&&workOverview&&<WorkContext summary={workOverview} docs={workspace.docs} choose={choose}/>}{doc.meta.type==='work'&&workOverview&&<AffectedFeatures summary={workOverview} docs={workspace.docs} choose={choose}/>}<div className="review-heading"><div><h2>Discussion</h2></div><span className="count">{threads.length}</span></div>

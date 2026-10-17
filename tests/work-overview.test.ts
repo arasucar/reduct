@@ -47,7 +47,7 @@ test('brief drift ignores metadata-only updates; body changes prevent silent rea
   const ready=await store.readyBrief(filled.meta.id,filled.hash,owner);
   await store.write(plan.path,encode({...plan.meta,status:'ready_for_review'},plan.body),plan.hash);
   assert.equal(inspectBrief(ready,(await store.load()).docs).drift,'current');
-  const current=await store.get(plan.meta.id);const revised=await store.saveBody(current.meta.id,current.body+'\nA changed behavior requirement.\n',current.hash);
+  const current=await store.get(plan.meta.id);const revised=await store.saveBody(current.meta.id,current.body+'\n## Proposed behavior\nA changed behavior requirement.\n',current.hash);
   let docs=(await store.load()).docs;assert.equal(inspectBrief(ready,docs).drift,'changed');
   assert.equal(summarizeWork(await store.get(work.meta.id),docs).stage,'brief_needs_update');
   await assert.rejects(store.readyBrief(ready.meta.id,ready.hash,owner),/changed/);
@@ -96,4 +96,62 @@ test('an unprepared implementation template leaves the work ready for plan revie
   assert.equal(briefPrepared(filled),true);
   assert.equal(summarizeWork(await store.get(work.meta.id),(await store.load()).docs).stage,'ready_for_implementation');
   assert.equal(ready.meta.status,'ready_for_review');
+});
+
+test('planning separates settled decisions, blockers and testing observations while delivery continues',async t=>{
+  const {store,work,plan}=await fixture(t);
+  await store.write(plan.path,encode({...plan.meta,status:'superseded'},plan.body),plan.hash);
+  const started=await store.updateWork(work.meta.id,work.hash,{workflow_mode:'simple',status:'in_progress',affected_features:[]});
+  const body='# Work\n\n## Plan\n\n### Owner decisions\nUse the floating toolbar.\n\n### Implementation blockers\nExport policy needs an owner decision; toolbar work can proceed.\n\n### Testing observations\nObserve the extreme-width fallback during owner testing.\n';
+  const changed=await store.saveBody(started.meta.id,body,started.hash);
+  assert.equal(changed.meta.status,'in_progress');
+  const summary=summarizeWork(changed,(await store.load()).docs);
+  assert.equal(summary.stage,'in_progress');assert.deepEqual(summary.questions,[]);
+  assert.equal(summary.decisions[0].text,'Use the floating toolbar.');
+  assert.ok(summary.blockers[0].text.includes('Export policy'));assert.ok(summary.testingObservations[0].text.includes('fallback'));
+  const pending=await store.updateWork(changed.meta.id,changed.hash,{workflow_mode:'simple',status:'awaiting_verification',affected_features:[]});
+  const adjusted=await store.saveBody(pending.meta.id,body.replace('floating toolbar','floating toolbar with the tested fallback'),pending.hash);
+  assert.equal(adjusted.meta.status,'awaiting_verification');
+});
+
+test('testing notes and open questions do not invalidate a brief, but instruction changes do',async t=>{
+  const {store,work,plan}=await fixture(t);
+  const body='# Plan\n\n## Accepted behavior\nUse the floating toolbar.\n\n## Open questions\nExport policy remains open; independent toolbar scope can proceed.\n\n## Investigation notes\nInspect narrow-width behavior.\n\n## Agent choices\nUse a compact overflow menu.\n\n## Testing observations\nObserve extreme-width layout.\n';
+  const current=await store.saveBody(plan.meta.id,body,plan.hash);
+  const brief=await store.create('implementation','Toolbar scope',work.meta.id);
+  const filled=await store.saveBody(brief.meta.id,'# Toolbar\n\nImplement the agreed toolbar; exclude export changes.\n',brief.hash);
+  const notes=await store.saveBody(current.meta.id,body.replace('Observe extreme-width layout.','Owner tested extreme widths; refine spacing.').replace('Export policy remains open; independent toolbar scope can proceed.','None.').replace('Inspect narrow-width behavior.','Inspected narrow-width behavior.'),current.hash);
+  assert.equal(inspectBrief(filled,(await store.load()).docs).drift,'current');
+  await store.saveBody(notes.meta.id,notes.body.replace('Use the floating toolbar.','Use a permanent sidebar.'),notes.hash);
+  assert.equal(inspectBrief(filled,(await store.load()).docs).drift,'changed');
+});
+
+test('fenced headings cannot hide changed instructions in Work or legacy Plan briefs',async t=>{
+  const {store,work,plan}=await fixture(t);
+  const instruction='Reject deletion while a reservation is active.';
+  const example='Use this example:\n```markdown\n## Testing observations\n```\n'+instruction+'\n';
+  const original=await store.saveBody(plan.meta.id,'# Plan\n\n## Accepted behavior\n'+example,plan.hash);
+  const legacyBrief=await store.create('implementation','Legacy instructions',work.meta.id);
+  const changed=await store.saveBody(original.meta.id,original.body.replace(instruction,'Allow deletion while a reservation is active.'),original.hash);
+  assert.equal(inspectBrief(legacyBrief,(await store.load()).docs).drift,'changed');
+  await store.write(changed.path,encode({...changed.meta,status:'superseded'},changed.body),changed.hash);
+  const embedded=await store.saveBody(work.meta.id,'# Work\n\n## Plan\n\n### Accepted behavior\n'+example+'\n## Implementation outcome\nPending.\n',work.hash);
+  // The old brief occupies implementation.md; reuse its source via a separate Work.
+  const second=await store.create('work','Embedded instructions','MODULE-alpha');
+  const written=await store.saveBody(second.meta.id,embedded.body,second.hash);
+  const brief=await store.create('implementation','Embedded instructions',second.meta.id);
+  await store.saveBody(written.meta.id,written.body.replace(instruction,'Allow deletion while a reservation is active.'),written.hash);
+  assert.equal(inspectBrief(brief,(await store.load()).docs).drift,'changed');
+});
+
+test('chosen implementation defaults trigger drift in separate and legacy combined sections',async t=>{
+  const {store,work,plan}=await fixture(t);
+  for(const heading of ['Agent choices','Investigation and agent choices']) {
+    const current=await store.get(plan.meta.id);
+    const original=await store.saveBody(current.meta.id,'# Plan\n\n## Accepted behavior\nPersist workspace state.\n\n## '+heading+'\nUse transactional writes.\n',current.hash);
+    const snapshot=await store.snapshot(original.meta.id,original.hash);
+    const changed=await store.saveBody(original.meta.id,original.body.replace('Use transactional writes.','Overwrite the file directly.'),original.hash);
+    const brief={...changed,meta:{...changed.meta,type:'implementation',parent:work.meta.id,source_plan:plan.meta.id,source_revision_id:snapshot.meta.id}};
+    assert.equal(inspectBrief(brief,(await store.load()).docs).drift,'changed',heading);
+  }
 });

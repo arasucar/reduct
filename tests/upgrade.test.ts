@@ -83,3 +83,24 @@ test('an older full agent guide migrates to the compact entrypoint with a comple
   for(const doc of before)assert.equal((await store.get(doc.meta.id)).hash,doc.hash);
   assert.deepEqual((await store.load()).errors,[]);
 });
+
+test('sync reparents legacy Feature-owned Work without moving documents or rewriting history',async t=>{
+  const repo=await fs.mkdtemp(path.join(os.tmpdir(),'reduct-work-migration-'));t.after(()=>fs.rm(repo,{recursive:true,force:true}));
+  const store=await init(repo);const feature=await store.create('feature','Tracking','MODULE-alpha');
+  const other=await store.create('feature','Notifications','MODULE-beta');
+  const {encode}=await import('../src/model.js');
+  const relative=path.join(path.dirname(feature.path),'work','repair','work.md');
+  await store.write(relative,encode({schema_version:1,id:'WORK-legacy',type:'work',title:'Repair',parent:feature.meta.id,status:'in_progress',affected_features:[other.meta.id]},'# Repair\n\n## Plan\nAgreed behavior.\n'),null);
+  const work=await store.get('WORK-legacy');const analysis=await store.create('analysis','Evidence',work.meta.id);
+  const snapshot=await store.snapshot(work.meta.id,work.hash);
+  const review=await store.comment(work.meta.id,work.hash,'Explain this.','',{name:'Owner',email:'owner@example.test'});
+  const before=[feature,other,analysis,snapshot,review].map(d=>({id:d.meta.id,path:d.path,hash:d.hash}));
+  const result=await syncWorkspace(repo);assert.ok(result.updated.includes(relative));
+  const migrated=await store.get(work.meta.id);
+  assert.equal(migrated.meta.parent,'MODULE-alpha');assert.equal(migrated.path,relative);
+  assert.equal(migrated.meta.status,'in_progress');assert.equal(migrated.body,work.body);
+  assert.deepEqual(migrated.meta.affected_features,[feature.meta.id,other.meta.id]);
+  for(const item of before){const current=await store.get(item.id);assert.equal(current.path,item.path);assert.equal(current.hash,item.hash);}
+  assert.deepEqual((await store.load()).errors,[]);
+  assert.ok(!(await syncWorkspace(repo)).updated.includes(relative));
+});

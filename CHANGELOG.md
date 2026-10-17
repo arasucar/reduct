@@ -2,6 +2,13 @@
 
 Release notes for `@arasucar/reduct`. Versions before 1.0 may change the CLI, library, or workspace format; check the notes before upgrading.
 
+## 0.2.1 — 2026-10-17
+
+- New Works belong directly to Modules and link affected Features. Workspace sync reparents legacy Feature-owned Works while preserving IDs, paths, and history.
+- Planning guidance separates recorded decisions, implementation blockers, agent choices, and testing observations, with independent scope proceeding through implementation and owner feedback.
+- Editing a Work's Plan preserves implementation and verification progress. Questions and testing notes can evolve without invalidating an implementation brief; changed instructions still require reconciliation.
+- The reader distinguishes implementation blockers from observations for owner testing.
+
 ## 0.2.0 — 2026-10-13
 
 - Compact agent entrypoint with the full installed reference and on-demand guide topics.

@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { hash } from './model.js';
+import { encode, hash } from './model.js';
 import { Store } from './store.js';
 import { version } from './version.js';
 import { guides, readGuide, readApplicationGuide } from './guides.js';
@@ -29,6 +29,14 @@ export async function syncWorkspace(repo:string) {
   const state=await store.load();
   if(state.errors.length)throw new Error(`Workspace validation failed. No files were changed: ${state.errors.join('; ')}`);
   const updated:string[]=[],skipped:string[]=[];
+  // Keep paths and immutable history intact; hierarchy follows stable parent IDs.
+  for(const work of state.docs.filter(d=>d.meta.type==='work')) {
+    const feature=state.docs.find(d=>d.meta.id===work.meta.parent&&d.meta.type==='feature');
+    if(!feature)continue;
+    const affected=Array.isArray(work.meta.affected_features)?work.meta.affected_features as string[]:[];
+    await store.write(work.path,encode({...work.meta,parent:feature.meta.parent,affected_features:[...new Set([feature.meta.id,...affected])]},work.body),work.hash);
+    updated.push(work.path);
+  }
   const managed={...manifest.managed_files};
   for(const [relative,template] of Object.entries(guides)) {
     const target=await store.safe(relative),next=await readGuide(template);

@@ -281,6 +281,8 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size
 .affected-work p { font-size: 12px; color: rgb(138, 150, 124); }
 .workflow-card { display: flex; gap: 12px; align-items: center; background: rgb(255, 255, 255); border-top: 1px solid rgb(224, 230, 215); border-right: 1px solid rgb(224, 230, 215); border-bottom: 1px solid rgb(224, 230, 215); border-image: none; border-left: 3px solid var(--record-color); padding: 14px; border-radius: 6px; margin: 10px 0px; }
 .workflow-card > div { flex: 1 1 0%; min-width: 0px; }
+.work-scope-notes { margin-top: 14px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.work-scope-notes > small { display: block; margin-top: 4px; color: rgb(109, 121, 94); }
 .workflow-card strong { font-size: 12px; display: block; margin-bottom: 6px; }
 .workflow-card .document-link { display: block; text-align: left; font-size: 12px; }
 .workflow-card p { font-size: 11px; color: rgb(146, 159, 130); line-height: 1.7; margin: 4px 0px; }
@@ -363,6 +365,9 @@ html, body, #root { height: 100%; overflow: hidden; }
 
 .discussion-features { padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid rgb(225, 230, 215); }
 .discussion-features .button { max-width: 100%; white-space: normal; text-align: left; }
+.affected-feature-links { display: flex; flex-direction: column; gap: 8px; max-height: 212px; overflow-y: auto; margin-top: 9px; }
+.discussion-features .affected-feature-links .button { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 0 0 36px; height: 36px; margin: 0; }
+.affected-feature-links .button span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .review-pane .work-context { padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid rgb(225, 230, 215); }
 .review-pane .work-context > h2 { margin: 0 0 14px; font-size: 13px; font-weight: 600; }
