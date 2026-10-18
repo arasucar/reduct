@@ -12,7 +12,7 @@ import { serve } from '../src/server.js';
 async function fixture(t:any) {
   const repo=await fs.mkdtemp(path.join(os.tmpdir(),'reduct-overview-'));t.after(()=>fs.rm(repo,{recursive:true,force:true}));
   const store=await init(repo);const a=await store.create('feature','Media','MODULE-alpha');const b=await store.create('feature','Canvas','MODULE-beta');
-  const work=await store.create('work','Deletion repair',a.meta.id,'bug','simple');const plan=await store.create('plan','Review deletion',work.meta.id);
+  const work=await store.create('work','Deletion repair',a.meta.id,'maintenance','simple');const plan=await store.create('plan','Review deletion',work.meta.id);
   return {store,a,b,work,plan};
 }
 test('work overview supports simple flow without analysis, cross-feature links, questions and real outcome evidence',async t=>{

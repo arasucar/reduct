@@ -50,3 +50,28 @@ export function changedLines<T extends { kind: string }>(lines: T[], context = 3
   if (omitted) result.push({ omitted });
   return result;
 }
+
+/** A selective view, never a claim that the complete record was read. */
+export function currentRecord(doc: Doc) {
+  const scanned = scanSections(doc.body);
+  // Historical targets must remain exact; unknown HTML boundaries cannot be filtered safely.
+  if (['snapshot', 'review'].includes(doc.meta.type) || scanned.unsupportedHtml)
+    return readableRecord(doc);
+  const historical = new Set(['history', 'delivery history', 'implementation history', 'verification history', 'historical acknowledgements', 'implementation outcome', 'verification results', 'investigation notes']);
+  let cursor = 0, body = '';
+  const omitted: string[] = [];
+  for (const heading of scanned.headings) {
+    if (heading.start < cursor || !historical.has(heading.title.toLowerCase())) continue;
+    body += doc.body.slice(cursor, heading.start);
+    cursor = heading.end;
+    omitted.push(heading.title);
+  }
+  body += doc.body.slice(cursor);
+  if (!omitted.length) return readableRecord(doc);
+  return `Record: ${doc.meta.id}\nFile: .reduct/${doc.path}\nHash: ${doc.hash}\nMetadata: ${JSON.stringify(doc.meta)}\nCurrent view (partial read; hash covers the whole record).\nRead on demand with read --section: ${JSON.stringify(omitted)}\n${body}`;
+}
+
+/** Rough body-only estimate, not a model-specific tokenizer or full transport cost. */
+export function contextSize(body: string) {
+  return { characters: body.length, estimated_tokens: Math.ceil(body.length / 4) };
+}

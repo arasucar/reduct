@@ -45,7 +45,7 @@ Then give your agent this request:
 
 > Read `.reduct/agent/README.md` and `reduct guide mapping`, inspect this application, document its existing modules and features, and report mapping coverage and unknowns.
 
-Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.2.1`.
+Use the full package name **`@arasucar/reduct`**; the unscoped `reduct` package is unrelated. The installed command is `reduct`. Global installation does not add dependencies to your application. For a specific version, use `npm install --global @arasucar/reduct@0.2.2`.
 
 <details>
 <summary>Installation troubleshooting</summary>
@@ -242,7 +242,7 @@ Modules contain Features and Work directly. Work has one Module home and links a
 
 - **Search and tree:** navigate the product map and linked capabilities.
 - **Breadcrumb and document path:** identify what you are reading and its file/version reference.
-- **Details and History:** read current Work or compare retained versions. Ordinary drafts are not saved at every keystroke.
+- **Details and History:** read the current document or compare distinct text versions. Automatic retention reuses unchanged text, so status and attribution updates do not add duplicate revisions. Review submission retains one version. Explicit checkpoints and implementation approvals preserve exact versions; older duplicate records remain accessible through existing links.
 - **Source references:** expand code and commit locations supporting the description.
 - **Show closed work:** reveal completed, rejected, and superseded branches. Their files and discussions remain available.
 
@@ -317,7 +317,7 @@ Start at the application root. The implementation agent delivers an authorized c
 
 #### Responsibilities
 
-- **Establish the requested change:** read the direct request or manually handed-off brief, its Work, affected features, discussion, and source context. A direct application request does not require a Reduct Plan.
+- **Establish the requested change:** read the direct request or manually handed-off brief, current Work intent, applicable constraints, relevant Feature sections, task-relevant discussion, and source context. A direct application request does not require a Reduct Plan.
 - **Check the starting state:** inspect existing edits and instructions. Surface material conflicts between the handed-off version, newer decisions, and actual code.
 - **Deliver within scope:** implement accepted behavior, choose ordinary internal technical details, and preserve unrelated work.
 - **Verify:** run checks appropriate to the change and permitted by repository instructions. Separate results from inspected code or test expectations, and identify outstanding runtime/device/manual gates.
@@ -346,7 +346,11 @@ Procedures and commands for agents maintaining the records.
 
 ### Resolve context
 
-A short request should identify a stable record ID or Markdown path and the owner's intention. Use `list` to find existing records, then `context RECORD-ID --compact --repo PATH` for the target and a complete related-record manifest. Supporting bodies are not included: read applicable parent constraints, linked features, active Work, supporting evidence, and open reviews before decisions. Batch required reads with `read-many ID,ID --format text`. `briefing RECORD-ID --short` supplies a request pointer; omit `--short` for an expanded briefing. The reader's Copy for implementation action supplies the brief's body.
+Identify the target by stable ID or Markdown path and the owner's intention. Use `list` to locate it, then `context RECORD-ID --current --repo PATH` for current intent and a related-record manifest. The manifest includes hashes, section names, and estimated body sizes before expansion. Estimates use characters divided by four; they are not model-specific token counts or total transport costs.
+
+Read applicable instructions and parent constraints, relevant Feature sections, active intent, and task-relevant open discussions. Use `read ID --section TITLE` and batch necessary full reads with `read-many ID,ID --format text`. Retrieve investigation and delivery history when needed to resolve a question or verify a claim. Agents should be able to start implementation without reading delivery chronology. A selective view never establishes that omitted sections were reviewed.
+
+`--current` excludes named history, outcome, verification, and investigation sections from the target view, listing their names for on-demand retrieval. It preserves all other sections, including decisions, questions, blockers, and testing observations. It cannot distinguish unstructured chronology from current intent. Historical targets and records with unsupported HTML retain their exact bodies. Use `context --compact` for an exact target plus manifest, and `context --full` for broad investigation. `briefing --short` is a request pointer; the reader's Copy for implementation action supplies the brief's body.
 
 ### Efficient agent access
 
@@ -355,7 +359,7 @@ The installed `agent/README.md` is a compact entrypoint. Retrieve deeper instruc
 - `list --search TEXT`, `--type TYPE`, `--parent ID`, and `--status STATE` return record metadata and section names without bodies. Snapshots, reviews, and guides are excluded unless their type is requested.
 - `read ID --format text` returns all metadata and the exact body without JSON escaping. JSON remains the default for compatibility. `read ID --section TITLE` returns one uniquely named ATX section and marks it as partial; its hash covers the whole record.
 - `read ID --if-changed HASH` returns an unchanged receipt when the whole-record hash matches. `read-many ID,ID --known-file PATH` batches reads using a JSON object of previously read IDs and hashes. Reuse only exact content already available in this session; reading a section does not establish knowledge of the whole record. Hashes do not establish that application sources are unchanged.
-- `context ID --compact --known-file PATH` omits an unchanged target body and marks unchanged related records. All related IDs, hashes, paths, and section names remain discoverable. Ordinary `context` retains its size limit with a complete manifest after truncation; `context ID --full` returns every selected body without truncation.
+- `context ID --current --known-file PATH` or `context ID --compact --known-file PATH` omits an unchanged target body and marks unchanged related records. All related IDs, hashes, paths, and section names remain discoverable. Ordinary `context` retains its size limit with a complete manifest after truncation; `context ID --full` returns every selected body without truncation.
 - `review list ID --status open --compact` returns message bodies once, retaining all thread metadata and hashes. Read full open discussions before addressing feedback.
 - `compare ID --revision REV --changes-only --context-lines 3` retains all changes, nearby lines, version hashes, and omitted-line counts. Full comparisons remain available.
 - `patch ID --hash HASH --section TITLE --body-file PATH` replaces section contents while keeping its heading; replacing a parent section includes its subsections. Section operations reject HTML outside fenced code rather than guess its boundaries; read the full record and use an exact passage update. `--match-file PATH` instead selects a unique exact passage, including whitespace. Missing or ambiguous selections and stale hashes fail without saving. Patches use the same attribution, concurrency, history, and approval rules as full writes.
@@ -369,15 +373,35 @@ Keep temporary bodies and known-hash files outside `.reduct/`. Preserve settled 
 | --- | --- |
 | Module | Product domain, purpose, shared constraints, and boundaries |
 | Feature | Current behavior, evidence, source references, dependencies, and unknowns |
+| Bug | Feature-owned report, reproduction evidence, fix Plan, progress, outcome, and verification |
 | Work | Requested change, `## Plan`, Module home, affected-feature links, lifecycle, outcome, and verification |
 | Analysis | Optional findings, alternatives, and investigation evidence |
 | Implementation brief | Settled behavior, tasks, scope, acceptance criteria, and reporting destinations |
 | Review | Append-only clarification discussion tied to a reviewed version/passage |
 | Snapshot | Retained complete version for review, comparison, or handoff history |
 
-Use `###` headings for behavior, scope, decisions, and questions inside Work's Plan. Do not create new standalone Plan documents; retain legacy ones and their links/history. Feature pages describe delivered behavior without verification checklists; proposed changes belong in Work and actual implementation checks belong in its outcome.
+Application/project instructions govern execution constraints; Modules govern shared domain constraints. Features are canonical for delivered behavior. An active Work's Plan describes the authorized change to that behavior, not delivery evidence. Analysis and history support decisions. A handoff brief is a self-contained view of canonical decisions, with exact source IDs, paths, and a retained source version; it does not become a competing current specification. Flag material conflicts with constraints or the owner's handed-off version rather than silently overriding them.
+
+Keep a Work's problem, desired result, current status, and next action within its first screen. New Works begin with a short Current status and `## Plan`; use `###` subsections for essential behavior, scope, decisions, and material questions. Add blockers, agent choices, testing observations, Analysis, or a handoff brief only when useful. Do not create new standalone Plan documents; retain legacy ones and their links/history. Small direct repairs do not require ceremonial Work.
+
+Ordinary Works aim for 200–400 words and Features for 150–350. These advisory authoring targets prompt reconsideration of structure; they are not validation gates or reasons to drop safeguards. Keep project instructions limited to active rules, architecture essentials, restrictions, and navigation pointers.
+
+Update current statements instead of appending corrections. Keep concise current outcomes and remaining work in Current status. Put detailed dated delivery and verification evidence under clearly labelled History sections or reference retained versions. Historical acknowledgements describe delivery at that time, not proof of current behavior; explain apparent contradictions with current delivery. Never rewrite retained versions, discussions, or exact owner quotations. Feature pages describe delivered behavior without verification checklists; proposed changes belong in Work and actual checks belong in its outcome.
 
 IDs in YAML frontmatter are stable identifiers rather than filenames. Use CLI creation to generate records and paths. Re-read hashes before mutation to detect concurrent changes. Preserve schema, attribution, reasons, retained versions, and discussion history when editing Markdown directly; run `check` afterward.
+
+### Bugs
+
+Use the hierarchy **Feature → Bug**. Keep all information in one Bug document: the report, expected and actual behavior, reproduction evidence, investigation, fix plan, decisions, current status, delivered fix, and verification. Add sections as needed. Do not create a separate Work, Analysis, implementation brief, or supporting bug document for the same bug.
+
+The reader shows red Bugs beneath Features and lists Bugs separately from Work on Feature pages. Comments and retained versions belong directly to the Bug. Closed Bugs hide until “Show closed work and bugs” is selected.
+
+    reduct create bug --title "Export fails" --parent FEATURE-ID --agent "Agent"
+    reduct update-bug BUG-ID --hash HASH --status in_progress --agent "Agent"
+
+Record `## Implementation outcome` and `## Verification results` in the Bug before `complete`, supplying affected-Feature hashes and update/no-change explanations as for Work. Pending verification does not count as completed delivery. A report alone does not authorize implementation.
+
+`sync` converts legacy bug Works when exactly one Feature is linked, preserving IDs, paths, discussions, and saved versions. Ambiguous ownership is reported as skipped. Legacy standalone fix Plans, Analysis, implementation instructions, tasks, and supporting bug documents are consolidated into their parent Bug, with active fix Plans becoming the embedded Plan and relative links adjusted for the new location; originals remain read-only archived evidence with their discussions and saved versions intact. They are hidden from the default tree and cannot be created again. Repeated sync does not duplicate imported content.
 
 ### Document formatting
 
@@ -394,24 +418,16 @@ Planning agents apply this convention when creating or revising current drafts. 
 
 ### Planning procedure
 
-1. Read the application instructions and inspect current sources. Create/reuse one Work directly under its Module and link known affected Features. Missing or incomplete Feature documentation does not block starting Work; create or update those records as behavior is delivered.
-2. Choose Simple for a small repair or Extended for deeper investigation. Work kinds are enhancement, bug, investigation, and maintenance; Analysis is optional.
-3. Write the Plan and submit Work for review. Review milestones retain full versions; ordinary file edits appear in the reader automatically.
-4. Read open threads and do the requested work, clarifying the document where needed. Use `review resolve` with one informative answer explaining the result or rationale; this posts the answer and marks the thread addressed. Do not post a separate reply followed by a resolution summary. Use `review reply` only when feedback still needs work or an answer from the owner. A reader follow-up reactivates an addressed thread.
-5. Once the next concrete scope is settled, create an Implementation brief for that scope. Independent scope may proceed while unrelated questions remain open; explicitly exclude blocked scope. Include exact Work and affected-feature IDs and file paths in its body so copied instructions have their reporting destinations. Remove unresolved “if approved” conditions from the scope being handed off; reversible testing observations do not block handoff.
-6. If the Plan changed, reconcile the brief's body before refreshing its source. Source refresh does not rewrite instructions. Source drift compares implementation instructions in the Plan; updates limited to open questions, investigation notes, or testing observations do not invalidate the brief.
-
-Create Works directly under a Module. Link affected Features within or across Modules; Features are not Work parents. Missing or incomplete Feature documentation does not block starting a Work. Create or update Feature records as behavior is delivered, and link newly documented Features to the Work before completion.
-
-Planning should converge toward a concrete implementation. Record owner answers under Decisions and remove the questions they settle. Ask new owner questions only when the answer materially changes scope or essential behavior, protects data, or avoids a costly commitment. Separate Implementation blockers from Investigation notes, Agent choices, and Testing observations. State exactly which scope a blocker prevents; proceed with independent agreed scope while unrelated questions remain open. Use `needs_owner_decision` only when the next concrete change is blocked; keep `in_progress` when independent implementation continues.
-
-Choose routine technical details and reasonable defaults within the authorized scope. Keep investigation evidence under Investigation notes and record chosen implementation defaults under Agent choices; changes to those defaults must update the handoff instructions. Existing combined Investigation and agent choices sections remain part of drift checks. Do not require every interaction or edge case to be settled before implementation. Reversible details, such as an extreme-width toolbar fallback, belong in Testing observations: implement the agreed layout with a reasonable default, let the owner test it, and refine it through targeted adjustments. Follow the loop: initial implementation → owner testing → feedback → targeted adjustments.
-
-Keep shared decisions in one canonical Work or Analysis record and reference its stable ID and section from related Works. A copied implementation brief must still include the applicable settled instructions so it can be executed independently. Prepare the brief for the agreed scope that can proceed, explicitly excluding blocked scope; unrelated open questions do not prevent handoff. Source drift calls for reconciliation of changed instructions, not restarting planning or reopening settled decisions.
+1. Read current intent and applicable constraints; inspect relevant sources. Reuse existing records or create one Work under its Module when the task benefits from planning. Link known affected Features; missing documentation does not block authorized implementation.
+2. State the problem, desired result, essential behavior, scope, current status, and next action. Use Simple for small repairs and Extended for deeper investigation. Keep Analysis optional and shared decisions canonical by ID and section.
+3. Ask only questions that materially affect scope, essential behavior, data protection, or costly commitments. Record settled answers under Decisions and remove the questions they settle. Choose routine technical details within authorized scope. Identify exactly what each blocker prevents and continue independent agreed scope. Use `needs_owner_decision` only when the next concrete change is blocked; otherwise keep `in_progress`.
+4. Proceed to implementation once essential behavior and authorization are clear. A planning-only request still requires a direct implementation request or manual handoff. Refine reversible details through initial implementation → owner testing → feedback → targeted adjustments. Keep investigation separate from chosen defaults; changes to Agent choices must be reflected in handed-off instructions. Spend most effort and tokens on implementation and relevant verification.
+5. Submit Work for review when review is needed; milestones retain full versions. Read relevant open threads, do the requested work, and use `review resolve` with one informative answer. Use `review reply` only for discussion still needing work or owner input. Resolution is not approval; reader follow-ups reactivate addressed threads.
+6. For a separate handoff, prepare a self-contained Implementation brief from canonical decisions, with exact Work and Feature IDs/paths, success criteria, constraints, agreed scope, and a retained source version. Exclude blocked scope; unrelated questions and reversible testing observations do not prevent handoff. Preserve the exact handed-off version. Reconcile changed instructions before refreshing the source; refreshing alone does not rewrite the brief. Source drift compares implementation instructions, including Agent choices and legacy combined Investigation and agent choices sections, but excludes open questions, investigation notes, and testing observations. Reconciliation does not restart planning or reopen settled decisions.
 
 ### Implementation and completion procedure
 
-For planned implementation, set Work to `in_progress` when starting. Create or update affected Feature records as behavior is delivered and link new records to the Work. Follow the owner's handed-off version; flag material conflicts with newer instructions. Record delivered changes, deviations, and remaining work in Implementation outcome, and checks actually run in Verification results. Direct application changes reconcile feature records without requiring Work for each repair.
+For planned implementation, set Work to `in_progress` when starting. Create or update affected Feature records as behavior is delivered and link new records to the Work. Follow the owner's handed-off version; flag material conflicts with newer instructions. Update Current status with delivered behavior, remaining work, and next action. Record concise delivered changes and deviations in Implementation outcome, and checks actually run with evidence references in Verification results. Put detailed dated chronology in labelled History sections or retained versions, available on demand. Reconcile only affected current statements; documentation maintenance should stay proportional to the change. Direct application changes reconcile feature records without requiring Work for each repair.
 
 Review every affected feature against delivery. Supply its current hash and an update/no-change explanation when completing Work. Use `passed` for successful executed verification, `pending` for outstanding checks, or `accepted_limitations` with a direct owner instruction. Pending checks leave Work awaiting verification. Use `complete`; setting `completed` through `update-work` is rejected.
 
@@ -424,12 +440,12 @@ For an installed release, run the global `reduct` command from the application r
 Read current IDs/hashes:
 
     reduct read RECORD-ID --repo /path/to/docs-workspace
-    reduct context RECORD-ID --repo /path/to/docs-workspace
+    reduct context RECORD-ID --current --repo /path/to/docs-workspace
     reduct review list WORK-ID --status open --repo /path/to/docs-workspace
 
 Create/write/submit:
 
-    reduct create work --title "Repair" --parent MODULE-ID --work-kind bug --workflow simple --agent "Planning agent" --reason "Owner requested analysis" --repo /path/to/docs-workspace
+    reduct create work --title "Repair" --parent MODULE-ID --work-kind maintenance --workflow simple --agent "Planning agent" --reason "Owner requested analysis" --repo /path/to/docs-workspace
     Write `## Plan` with `###` subsections in the work document.
     reduct write WORK-ID --hash HASH --body-file /path/to/body.md --agent "Planning agent" --reason "Clarified REVIEW-ID" --repo /path/to/docs-workspace
     reduct submit-review WORK-ID --hash HASH --agent "Planning agent" --repo /path/to/docs-workspace

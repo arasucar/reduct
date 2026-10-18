@@ -9,8 +9,8 @@ export function actionableNotifications(docs:Doc[],briefStates:Record<string,Bri
   const items:Notification[]=[];
   const active=new Set(visibleTreeRecords(docs,false).map(d=>d.meta.id));
   for(const doc of docs) {
-    if(active.has(doc.meta.id)&&doc.meta.type==='work'&&doc.meta.status==='needs_owner_decision')items.push({id:doc.meta.id,targetId:doc.meta.id,kind:'decision',title:doc.meta.title,detail:'Discuss this decision with your planning agent'});
-    if(active.has(doc.meta.id)&&['plan','work'].includes(doc.meta.type)&&doc.meta.status==='ready_for_review'&&!docs.some(b=>b.meta.type==='implementation'&&b.meta.source_plan===doc.meta.id&&briefPrepared(b)&&briefStates[b.meta.id]?.drift==='current'))items.push({id:doc.meta.id,targetId:doc.meta.id,kind:'review',title:doc.meta.title,detail:'Read the proposal and give your decision directly to the agent'});
+    if(active.has(doc.meta.id)&&['work','bug'].includes(doc.meta.type)&&doc.meta.status==='needs_owner_decision')items.push({id:doc.meta.id,targetId:doc.meta.id,kind:'decision',title:doc.meta.title,detail:'Discuss this decision with your planning agent'});
+    if(active.has(doc.meta.id)&&['plan','work','bug'].includes(doc.meta.type)&&doc.meta.status==='ready_for_review'&&!docs.some(b=>b.meta.type==='implementation'&&b.meta.source_plan===doc.meta.id&&briefPrepared(b)&&briefStates[b.meta.id]?.drift==='current'))items.push({id:doc.meta.id,targetId:doc.meta.id,kind:'review',title:doc.meta.title,detail:'Read the proposal and give your decision directly to the agent'});
     if(active.has(doc.meta.id)&&doc.meta.type==='implementation'&&briefStates[doc.meta.id]?.drift&&briefStates[doc.meta.id].drift!=='current')items.push({id:doc.meta.id,targetId:doc.meta.id,kind:'drift',title:doc.meta.title,detail:briefStates[doc.meta.id].drift==='missing'?'The source plan or saved version is missing':'The source plan changed; ask your agent to update the brief'});
     if(doc.meta.type==='review') {
       const last=Array.isArray(doc.meta.messages)?(doc.meta.messages as Message[]).at(-1):undefined;

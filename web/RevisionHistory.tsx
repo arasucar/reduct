@@ -2,6 +2,16 @@ import { useEffect, useState } from 'react';
 import type { Doc } from '../src/model';
 import type { DiffLine } from '../src/compare';
 
+/** Retain original records, but show one entry per distinct document text. */
+export function distinctRevisions(snapshots:Doc[]):Doc[] {
+  const seen=new Set<string>();
+  return snapshots.filter(snapshot=>{
+    const key=JSON.stringify([snapshot.meta.source_type,snapshot.meta.title,snapshot.body]);
+    if(seen.has(key))return false;
+    seen.add(key);return true;
+  });
+}
+
 type Comparison = { lines:DiffLine[]; coarse:boolean; currentHash:string; sourceHash:string; added:number; removed:number };
 export function RevisionHistory({doc,snapshots,open}:{doc:Doc;snapshots:Doc[];open:(id:string)=>void}) {
   const [chosen,setChosen]=useState('');
@@ -16,7 +26,7 @@ export function RevisionHistory({doc,snapshots,open}:{doc:Doc;snapshots:Doc[];op
     }).catch(e=>{if(!cancelled)setError(e.message);});
     return ()=>{cancelled=true;};
   },[doc.meta.id,doc.hash,revision?.meta.id]);
-  return <div className="history"><h2>History</h2><p>Versions are saved automatically when you comment and when agents submit plans, prepare briefs, or record your decisions. Compare saved versions with the current document.</p>
+  return <div className="history"><h2>History</h2><p>History shows distinct document text. Automatic saves reuse unchanged text; explicit checkpoints and implementation approvals retain their exact versions. Older duplicate records remain available through existing links.</p>
     {snapshots.length?<>
       <label className="revision-select">Compare against<select value={revision.meta.id} onChange={e=>setChosen(e.target.value)}>{snapshots.map((s,i)=><option key={s.meta.id} value={s.meta.id}>Version {snapshots.length-i} · {new Date(String(s.meta.retained_at)).toLocaleString()}</option>)}</select></label>
       <div className="comparison-heading"><strong>Saved version → Current version</strong><button className="quiet" onClick={()=>open(revision.meta.id)}>Read saved version ↗</button></div>

@@ -22,8 +22,8 @@ Read and validate
                              Read a record (default: JSON), or one exact section
   read-many ID[,ID...] [--format text|json] [--known-file PATH]
                              Batch reads; skip bodies already read at those hashes
-  context ID [--compact | --full] [--known-file PATH]
-                             Full context, or target body plus related record index
+  context ID [--current | --compact | --full] [--known-file PATH]
+                             Current intent, exact target, or expanded bodies; index includes size estimates
   briefing ID [--short]      Prepare context for an agent
   compare ID --revision REV [--changes-only] [--context-lines N]
                              Compare versions; optionally omit unchanged stretches
@@ -32,9 +32,10 @@ Read and validate
 Agent commands (require --agent NAME)
   sync                       Update managed guides and migrate legacy Work homes
   create TYPE --title TITLE [--parent ID]
-                             Types: module, feature, work, analysis, implementation
+                             Types: module, feature, bug, work, analysis, implementation
                              Work home: Module (--parent MODULE-ID); link affected Features separately
-                             Work: --work-kind enhancement|bug|investigation|maintenance
+                             Bug home: Feature; report, investigation, fix, and verification stay in the Bug
+                             Work: --work-kind enhancement|investigation|maintenance
                                    --workflow simple|extended
   write ID --hash HASH --body-file PATH
   patch ID --hash HASH --body-file PATH (--section TITLE | --match-file PATH)
@@ -43,6 +44,8 @@ Agent commands (require --agent NAME)
   snapshot ID --hash HASH
   update-work ID --hash HASH --status STATE [--workflow simple|extended]
                  [--affected-features ID,ID]
+  update-bug ID --hash HASH --status STATE [--affected-features ID,ID]
+                             Track a bug directly; complete uses the same evidence checks
   refresh-brief-source ID --hash HASH --plan-hash HASH
   record-approval ID --hash HASH --owner-instruction-file PATH
   record-handoff ID --hash HASH --revision REV --owner-instruction-file PATH

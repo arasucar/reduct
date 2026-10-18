@@ -137,7 +137,8 @@ test('patches use the same plan approval invalidation as full writes',async t=>{
   assert.equal(updated.meta.status,'draft');
   assert.equal(updated.meta.approved_body_hash,undefined);
   assert.equal(updated.meta.approved_by,undefined);
-  const before=(await store.get(work.meta.id));
+  const draft=await store.get(work.meta.id);
+  const before=await store.saveBody(draft.meta.id,draft.body+'\n## Implementation outcome\nPartial delivery retained.\n\n## Verification results\nExecuted check retained.\n',draft.hash);
   const changed=await store.patchBody(before.meta.id,before.hash,'Different plan.',{section:'Plan'});
   assert.equal(changed.meta.status,'draft');
   assert.equal(changed.body.slice(changed.body.indexOf('## Implementation outcome')),before.body.slice(before.body.indexOf('## Implementation outcome')));
@@ -229,4 +230,35 @@ test('CLI discovery, batch reads, conditional receipts and guarded patching work
   assert.match(run(repo,'context',feature.meta.id,'--compact').stdout,/read_on_demand/);
   assert.equal(run(repo,'context',feature.meta.id,'--compact','--full').status,1);
   assert.equal((await store.load()).errors.length,0);
+});
+
+test('current context retains actionable intent while history remains exact and retrievable',async t=>{
+  const {store,repo}=await fixture(t);
+  const work=await store.create('work','Current intent','MODULE-alpha');
+  const body='# Current intent\n\n## Current status\nToolbar implemented; export remains blocked. Next: owner tests narrow widths.\n\n## Plan\n\n### Decisions\nPreserve keyboard access.\n\n### Open questions\nDoes export include private records?\n\n### Investigation notes\nSuperseded investigation detail.\n\n### Testing observations\nObserve narrow widths.\n\n## Implementation outcome\nDated delivery chronology.\n\n## Verification results\nDated verification evidence.\n\n## History\nHistorical acknowledgement of reverted behavior.\n';
+  const saved=await store.saveBody(work.meta.id,body,work.hash);
+  const version=await store.snapshot(saved.meta.id,saved.hash);
+  const current=await store.compactContext(saved.meta.id,{},true);
+  for(const text of ['Toolbar implemented','Preserve keyboard access','Does export include private records?','Observe narrow widths.'])assert.ok(current.includes(text));
+  for(const text of ['Superseded investigation detail.','Dated delivery chronology.','Dated verification evidence.','Historical acknowledgement of reverted behavior.'])assert.ok(!current.includes(text));
+  assert.match(current,/partial read; hash covers the whole record/);
+  assert.match(current,/Read on demand with read --section/);
+  const manifest=JSON.parse(current.split('\n\n')[2]);
+  const entry=manifest.find((d:{id:string})=>d.id===saved.meta.id);
+  assert.deepEqual(entry.body_size,{characters:body.length,estimated_tokens:Math.ceil(body.length/4)});
+  assert.ok((await store.compactContext(saved.meta.id)).includes(body));
+  assert.ok(readableRecord(await store.get(saved.meta.id),'History').includes('Historical acknowledgement'));
+  assert.ok((await store.compactContext(version.meta.id,{},true)).includes(body));
+  const result=run(repo,'context',saved.meta.id,'--current');
+  assert.equal(result.status,0,result.stderr);assert.equal(result.stdout,current+'\n');
+  for(const flag of ['--compact','--full'])assert.equal(run(repo,'context',saved.meta.id,'--current',flag).status,1);
+  const known=path.join(repo,'known.json');await fs.writeFile(known,JSON.stringify({[saved.meta.id]:saved.hash}));
+  const unchanged=run(repo,'context',saved.meta.id,'--current','--known-file',known);
+  assert.equal(unchanged.status,0,unchanged.stderr);assert.match(unchanged.stdout,/unchanged/);assert.ok(!unchanged.stdout.includes('Toolbar implemented'));
+  // Fenced examples are not section boundaries, and unknown HTML must not hide instructions.
+  for(const exact of ['# Legacy\n\n```md\n## History\n```\nKeep this instruction.\n','# Legacy\n\n<div>\n## History\nKeep this instruction.\n</div>\n']) {
+    const latest=await store.get(saved.meta.id);
+    const updated=await store.saveBody(latest.meta.id,exact,latest.hash);
+    assert.ok((await store.compactContext(updated.meta.id,{},true)).includes(exact));
+  }
 });

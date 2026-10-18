@@ -378,3 +378,6 @@ html, body, #root { height: 100%; overflow: hidden; }
 .discussion-copy button { display: grid; place-items: center; padding: 3px; }
 .discussion-copy svg { width: 14px; height: 14px; }
 .copy-tooltip { position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); padding: 5px 8px; border-radius: 4px; background: #344634; color: white; font-size: 10px; white-space: nowrap; z-index: 2; pointer-events: none; }
+
+.type-bug { --record-color: #b8323b; --record-tint: #fcebed; }
+.linked-work-card.type-bug { color: var(--record-color); border-color: #edbcc1; background: #fff8f8; }

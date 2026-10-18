@@ -1,10 +1,11 @@
 import type { Meta } from '../src/model';
-export const typeLabels:Record<string,string>={module:'Module',feature:'Feature',work:'Work',analysis:'Analysis',plan:'Plan',implementation:'Implementation brief',snapshot:'Saved version',guide:'How to use',task:'Task'};
+export const typeLabels:Record<string,string>={module:'Module',feature:'Feature',work:'Work',bug:'Bug',bug_document:'Archived evidence',analysis:'Analysis',plan:'Plan',implementation:'Implementation brief',snapshot:'Saved version',guide:'How to use',task:'Task'};
 export function RecordIcon({type}:{type:string}) {
   const paths:Record<string,React.ReactNode>={
     module:<><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
     feature:<><path d="m12 2 10 6-10 6L2 8Z"/><path d="m2 12 10 6 10-6M2 16l10 6 10-6"/></>,
     work:<><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12h8m-3-3 3 3-3 3"/></>,
+    bug:<><path d="M9 5V3m6 2V3M4 10H2m20 0h-2M4 16H2m20 0h-2M8 21l1-3m7 3-1-3"/><rect x="5" y="5" width="14" height="14" rx="6"/><path d="M12 9v5m0 2h.01"/></>,
     analysis:<><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6M7 10h6m-3-3v6"/></>,
     plan:<><rect x="5" y="3" width="15" height="19" rx="2"/><path d="m8 8 1 1 2-2m2 1h4M8 14h9M8 18h7"/></>,
     implementation:<><path d="m9 8-5 4 5 4m6-8 5 4-5 4M13 5l-2 14"/></>,

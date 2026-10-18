@@ -4,7 +4,7 @@ import { hash, type Doc } from './model.js';
 export { closedWorkStatuses, visibleTreeRecords } from './tree.js';
 export type BriefState = { drift:'current'|'changed'|'missing'; sourceVersion?:string; planId?:string; approvalValid:boolean };
 export function inspectBrief(brief:Doc, docs:Doc[]):BriefState {
-  const plan=docs.find(d=>d.meta.id===brief.meta.source_plan&&((d.meta.type==='plan'&&d.meta.parent===brief.meta.parent)||(d.meta.type==='work'&&d.meta.id===brief.meta.parent)));
+  const plan=docs.find(d=>d.meta.id===brief.meta.source_plan&&((d.meta.type==='plan'&&d.meta.parent===brief.meta.parent)||(['work','bug'].includes(d.meta.type)&&d.meta.id===brief.meta.parent)));
   const version=docs.find(d=>d.meta.id===brief.meta.source_revision_id&&d.meta.type==='snapshot'&&d.meta.parent===plan?.meta.id);
   return {drift:!plan||!version?'missing':implementationPlanText(plan)===implementationPlanText({...version,meta:{...version.meta,source_type:plan.meta.type}})?'current':'changed',sourceVersion:version?.meta.id,planId:plan?.meta.id,
     approvalValid:brief.meta.status==='ready_for_handoff'&&brief.meta.approved_body_hash===hash(brief.body)};
@@ -17,7 +17,7 @@ export type WorkOverview = {
   approvedVersionIds:string[];handoffRevisionId?:string;handoffAt?:string;
 };
 export function summarizeWork(work:Doc,docs:Doc[]):WorkOverview {
-  const children=docs.filter(d=>d.meta.parent===work.meta.id);
+  const children=docs.filter(d=>d.meta.parent===work.meta.id&&!d.meta.merged_into);
   const plans=children.filter(d=>d.meta.type==='plan'&&d.meta.status!=='superseded');
   const briefs=children.filter(d=>d.meta.type==='implementation');
   const briefStates=Object.fromEntries(briefs.map(b=>[b.meta.id,inspectBrief(b,docs)]));

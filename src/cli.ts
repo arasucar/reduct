@@ -67,7 +67,7 @@ async function confirmInit() {
     const state=await store.load();
     if(state.errors.length)throw new Error(`Workspace validation failed:\n${state.errors.join('\n')}`);
     const query=option('search').toLowerCase();
-    console.log(JSON.stringify(state.docs.filter(d=>(option('type')?d.meta.type===option('type'):!['snapshot','review','guide'].includes(d.meta.type))&&(!option('parent')||d.meta.parent===option('parent'))&&(!option('status')||d.meta.status===option('status'))&&(!query||`${d.meta.id} ${d.meta.title} ${d.path}`.toLowerCase().includes(query))).map(recordIndex)));
+    console.log(JSON.stringify(state.docs.filter(d=>(option('type')?d.meta.type===option('type'):!['snapshot','review','guide','bug_document'].includes(d.meta.type))&&(!option('parent')||d.meta.parent===option('parent'))&&(!option('status')||d.meta.status===option('status'))&&(!query||`${d.meta.id} ${d.meta.title} ${d.path}`.toLowerCase().includes(query))).map(recordIndex)));
   }
   else if(command==='hash') {
     const ids=args[1]?.split(',');if(!ids?.length)throw new Error('Provide record IDs separated by commas');
@@ -86,9 +86,9 @@ async function confirmInit() {
     else console.log(outputs.map(o=>typeof o==='string'?o:JSON.stringify(o)).join('\n\n---\n\n'));
   }
   else if(command==='context') {
-    if(args.includes('--compact')&&args.includes('--full'))throw new Error('Choose either --compact or --full');
-    if(option('known-file')&&!args.includes('--compact'))throw new Error('--known-file requires context --compact');
-    console.log(await (args.includes('--compact')?store.compactContext(args[1],await knownHashes()):store.context(args[1],args.includes('--full'))));
+    if(['--compact','--current','--full'].filter(flag=>args.includes(flag)).length>1)throw new Error('Choose one of --compact, --current, or --full');
+    if(option('known-file')&&!args.includes('--compact')&&!args.includes('--current'))throw new Error('--known-file requires context --compact or --current');
+    console.log(await (args.includes('--compact')||args.includes('--current')?store.compactContext(args[1],await knownHashes(),args.includes('--current')):store.context(args[1],args.includes('--full'))));
   }
   else if(command==='briefing')console.log((await (args.includes('--short')?store.shortBriefing(args[1]):store.briefing(args[1]))).text);
   else if(command==='compare') {
@@ -104,7 +104,7 @@ async function confirmInit() {
   }
   else if(command==='submit-review'){requireAgent();const {doc,expected}=await inputDoc();result(await store.submitReview(doc.meta.id,expected));}
   else if(command==='snapshot'){requireAgent();const {doc,expected}=await inputDoc();result(await store.snapshot(doc.meta.id,expected,option('reason','agent_checkpoint')));}
-  else if(command==='update-work'){requireAgent();const {doc,expected}=await inputDoc();if(option('status')==='completed')throw new Error('Use complete with verification evidence and affected-feature acknowledgements.');const affected=option('affected-features');result(await store.updateWork(doc.meta.id,expected,{workflow_mode:option('workflow',String(doc.meta.workflow_mode??'simple')),status:option('status',String(doc.meta.status??'draft')),affected_features:affected?affected.split(','):Array.isArray(doc.meta.affected_features)?doc.meta.affected_features as string[]:[]}));}
+  else if(command==='update-work'||command==='update-bug'){requireAgent();const {doc,expected}=await inputDoc();if(command==='update-bug'&&doc.meta.type!=='bug')throw new Error('Choose a Bug record for update-bug.');if(option('status')==='completed')throw new Error('Use complete with verification evidence and affected-feature acknowledgements.');const affected=option('affected-features');result(await store.updateWork(doc.meta.id,expected,{workflow_mode:option('workflow',String(doc.meta.workflow_mode??'simple')),status:option('status',String(doc.meta.status??'draft')),affected_features:affected?affected.split(','):Array.isArray(doc.meta.affected_features)?doc.meta.affected_features as string[]:[]}));}
   else if(command==='refresh-brief-source'){requireAgent();const {doc,expected}=await inputDoc();const planHash=option('plan-hash');if(!planHash)throw new Error('Read the current plan and supply --plan-hash.');result(await store.refreshBriefSource(doc.meta.id,expected,planHash));}
   else if(command==='record-approval'){requireAgent();const {doc,expected}=await inputDoc();result(await store.readyBrief(doc.meta.id,expected,owner(),await ownerInstruction()));}
   else if(command==='record-handoff'){requireAgent();const {doc,expected}=await inputDoc();result(await store.recordHandoff(doc.meta.id,expected,option('revision'),owner(),await ownerInstruction()));}

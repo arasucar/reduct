@@ -15,7 +15,8 @@ export function decode(raw: string, path = ''): Doc {
   const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/.exec(raw);
   if (!match) throw new Problem(`${path}: expected YAML frontmatter`);
   const meta = parse(match[1], { maxAliasCount: 20 }) as Meta;
-  if (!meta || meta.schema_version !== 1 || typeof meta.id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(meta.id) || typeof meta.title !== 'string' || !['module',  'feature', 'work', 'plan', 'analysis', 'task', 'review', 'snapshot', 'implementation', 'guide'].includes(meta.type)) throw new Problem(`${path}: invalid record metadata`);
+  // bug_document is read-only compatibility for evidence retained from earlier workspaces.
+  if (!meta || meta.schema_version !== 1 || typeof meta.id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(meta.id) || typeof meta.title !== 'string' || !['module',  'feature', 'bug', 'bug_document', 'work', 'plan', 'analysis', 'task', 'review', 'snapshot', 'implementation', 'guide'].includes(meta.type)) throw new Problem(`${path}: invalid record metadata`);
   if (meta.parent !== undefined && typeof meta.parent !== 'string') throw new Problem(`${path}: invalid parent`);
   if (meta.related !== undefined && (!Array.isArray(meta.related) || meta.related.some(x => typeof x !== 'string'))) throw new Problem(`${path}: invalid related IDs`);
   return { meta, body: match[2], path, hash: hash(raw), bodyStartLine: raw.slice(0,match[0].length-match[2].length).split('\n').length };

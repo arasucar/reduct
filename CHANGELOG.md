@@ -2,6 +2,16 @@
 
 Release notes for `@arasucar/reduct`. Versions before 1.0 may change the CLI, library, or workspace format; check the notes before upgrading.
 
+## 0.2.2 — 2026-10-18
+
+- Implementation-first workflow with selective reading, explicit record authority, concise current intent, and proportional documentation updates.
+- `context --current` keeps named history and investigation available on demand; context manifests estimate body sizes before expansion.
+- Feature-owned Bugs contain reports, investigation, fix plans, progress, and verification in one red document, separate from Work. Bugs appear on every affected Feature page.
+- Workspace sync migrates legacy bug Works and consolidates their plans and evidence, rebasing links while preserving archived originals, discussions, and saved versions. Edited imports are flagged instead of overwritten.
+- Automatic revision retention reuses unchanged text. Review submission saves one version, repeated submission adds no copies, and History groups duplicate text. Explicit checkpoints and approvals remain intact.
+- Handoffs prefer the exact saved approval; metadata-equivalent fallbacks cannot select older owner instructions or source versions.
+- New Works begin with current status and essential plan sections. Document-length targets remain advisory.
+
 ## 0.2.1 — 2026-10-17
 
 - New Works belong directly to Modules and link affected Features. Workspace sync reparents legacy Feature-owned Works while preserving IDs, paths, and history.

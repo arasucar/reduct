@@ -30,7 +30,7 @@ export async function serve(store: Store, port = 4310) {
           const target = state.docs.find(t => t.meta.id === d.meta.target_id);
           return { ...d, messages: messages(d), anchor: target ? anchor(target,d) : { state: 'outdated' } };
         });
-        const workOverviews=Object.fromEntries(state.docs.filter(d=>d.meta.type==='work').map(d=>[d.meta.id,summarizeWork(d,state.docs)]));
+        const workOverviews=Object.fromEntries(state.docs.filter(d=>['work','bug'].includes(d.meta.type)).map(d=>[d.meta.id,summarizeWork(d,state.docs)]));
         const briefStates=Object.fromEntries(state.docs.filter(d=>d.meta.type==='implementation').map(d=>[d.meta.id,inspectBrief(d,state.docs)]));
         return json(res, 200, { ...state, workOverviews, briefStates, threads, identity: store.gitIdentity(), repo: store.repo, role:'reader', token });
       }

@@ -2,11 +2,12 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { compareLines } from './compare.js';
 import { inspectBrief, summarizeWork } from './workflow.js';
 import { planText, markdownSection, briefPrepared } from './document-content.js';
 import { closedWorkStatuses } from './tree.js';
-import { recordIndex, readableRecord, section } from './agent-output.js';
+import { recordIndex, readableRecord, currentRecord, contextSize, section } from './agent-output.js';
 import { appendMessage, decode, encode, hash, identityValid, messages, Problem, type Doc, type Identity, type Message, type Meta, type PassageSelection } from './model.js';
 
 export class Store {
@@ -45,14 +46,15 @@ export class Store {
     catch (e) { errors.push((e as Error).message); }
     const byId = new Map<string, Doc>();
     for (const doc of docs) { if (byId.has(doc.meta.id)) errors.push(`Duplicate ID: ${doc.meta.id}`); byId.set(doc.meta.id, doc); }
-    const allowed: Record<string, string[]> = { feature: ['module'], work: ['module','feature'], plan: ['work'], analysis: ['work'], task: ['work','feature'], review: ['module','feature','work','plan','analysis','implementation'], implementation: ['work'], snapshot: ['work','plan','feature','module','analysis','implementation'] };
+    const allowed: Record<string, string[]> = { feature: ['module'], bug: ['feature'], bug_document: ['bug'], work: ['module','feature'], plan: ['work','bug'], analysis: ['work','bug'], task: ['work','bug','feature'], review: ['module','feature','bug','bug_document','work','plan','analysis','implementation'], implementation: ['work','bug'], snapshot: ['bug','bug_document','work','plan','feature','module','analysis','implementation'] };
     for (const doc of docs) {
       const parent = doc.meta.parent ? byId.get(doc.meta.parent) : undefined;
       if (!['module','guide'].includes(doc.meta.type) && (!parent || !allowed[doc.meta.type]?.includes(parent.meta.type))) errors.push(`${doc.meta.id}: missing or invalid parent`);
       if (['module','guide'].includes(doc.meta.type) && doc.meta.parent) errors.push(`${doc.meta.id}: modules and guides cannot have parents`);
       if (parent) {
         const prefix = path.dirname(parent.path) + path.sep;
-        if (!doc.path.startsWith(prefix)) errors.push(`${doc.meta.id}: directory does not match parent`);
+        const legacyBugHome=doc.meta.type==='bug'&&doc.meta.migrated_from_work===true&&parent.meta.type==='feature'&&docs.some(m=>m.meta.type==='module'&&m.meta.id===(doc.meta.original_work_module??parent.meta.parent)&&doc.path.startsWith(path.dirname(m.path)+path.sep));
+        if (!doc.path.startsWith(prefix)&&!legacyBugHome) errors.push(`${doc.meta.id}: directory does not match parent`);
       }
       for (const id of doc.meta.related ?? []) if (!byId.has(id)) errors.push(`${doc.meta.id}: missing related record ${id}`);
       const seen = new Set([doc.meta.id]); let cursor = parent;
@@ -96,12 +98,13 @@ export class Store {
   }
   async saveBody(id: string, body: string, expected: string) {
     const doc = await this.get(id);
+    if(doc.meta.type==='bug_document'||doc.meta.merged_into)throw new Problem('This is archived evidence. Update its parent Bug instead.');
     if (['review','snapshot'].includes(doc.meta.type)) throw new Problem('Use review actions; revision snapshots are read-only.');
     if (typeof body !== 'string' || body.length > 200000) throw new Problem('Invalid document body');
     const meta={...doc.meta};
-    if((['plan','implementation'].includes(meta.type)||(meta.type==='work'&&planText(doc)!==markdownSection(body,['plan'])))&&body!==doc.body) {
+    if((['plan','implementation'].includes(meta.type)||(['work','bug'].includes(meta.type)&&planText(doc)!==markdownSection(body,['plan'])))&&body!==doc.body) {
       // Refining a Plan does not erase implementation or testing progress.
-      if(meta.type!=='work'||!['in_progress','awaiting_verification'].includes(String(meta.status)))meta.status='draft';
+      if(!['work','bug'].includes(meta.type)||!['in_progress','awaiting_verification'].includes(String(meta.status)))meta.status='draft';
       delete meta.approved_by;delete meta.approved_at;delete meta.approved_body_hash;
     }
     await this.write(doc.path, encode(meta, body), expected);
@@ -126,20 +129,21 @@ export class Store {
     return this.saveBody(id, doc.body.slice(0, start) + replacement + doc.body.slice(end), expected);
   }
   async create(type: string, title: string, parentId?: string, workKind = 'enhancement', workflowMode = 'simple') {
-    if (!['module','feature','work','plan','analysis','implementation'].includes(type) || typeof title !== 'string' || !title.trim() || title.length > 160) throw new Problem('Provide a record type and title.');
-    const allowed: Record<string,string[]> = { feature:['module'],work:['module'],plan:['work'],analysis:['work'],implementation:['work'] };
+    if(type==='bug_document')throw new Problem('Bug documentation belongs in the Bug record. Separate bug documents are no longer created.');
+    if (!['module','feature','bug','work','plan','analysis','implementation'].includes(type) || typeof title !== 'string' || !title.trim() || title.length > 160) throw new Problem('Provide a record type and title.');
+    const allowed: Record<string,string[]> = { feature:['module'],bug:['feature'],work:['module'],plan:['work'],analysis:['work'],implementation:['work'] };
     let parent = parentId ? await this.get(parentId) : undefined;
     // Older callers may supply a Feature; keep it as a link and use its Module as home.
     const homeFeature=type==='work'&&parent?.meta.type==='feature'?parent:undefined;
     if(homeFeature)parent=await this.get(homeFeature.meta.parent!);
     if (type === 'module' ? !!parent : !parent || !allowed[type]?.includes(parent.meta.type)) throw new Problem('Invalid parent for this record type');
-    if(type==='work'&&!['enhancement','bug','investigation','maintenance'].includes(workKind))throw new Problem('Invalid work kind');
-    if(type==='work'&&!['simple','extended'].includes(workflowMode))throw new Problem('Invalid workflow mode');
+    if(type==='work'&&!['enhancement','investigation','maintenance'].includes(workKind))throw new Problem('Invalid work kind. Create a bug under its Feature instead of a bug Work.');
+    if(['work','bug'].includes(type)&&!['simple','extended'].includes(workflowMode))throw new Problem('Invalid workflow mode');
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,70) || 'untitled';
     let relative: string;
     if (type === 'module') relative = `modules/${slug}/module.md`;
     else if (type === 'plan' || type === 'analysis' || type === 'implementation') relative = path.join(path.dirname(parent!.path), `${type}.md`);
-    else relative = path.join(path.dirname(parent!.path), type === 'feature' ? 'features' : 'work',slug,`${type}.md`);
+    else relative = path.join(path.dirname(parent!.path), type === 'feature' ? 'features' : type === 'bug' ? 'bugs' : 'work',slug,`${type}.md`);
     const id = `${type.toUpperCase()}-${randomUUID()}`;
     let body = type === 'plan' ? `# ${title.trim()}\n\n## Intention\n\nDescribe the desired change.\n\n## Current state\n\nRecord inspected evidence and uncertainty.\n\n## Proposed behavior\n\nDescribe what should change and what must remain true.\n\n## Implementation steps\n\n- [ ] Define the steps.\n\n## Acceptance criteria\n\nDefine how the implementation will be checked.\n\n## Out of scope\n\nState exclusions.\n\n## Open questions\n\nList decisions needing owner input.\n` : `# ${title.trim()}\n\n## ${type === 'feature' ? 'Current behavior' : 'Purpose'}\n\nDescribe this ${type}.\n\n## Challenges and unknowns\n\nRecord uncertainty and surrounding dependencies.\n`;
     if(type==='plan'&&parent?.meta.workflow_mode==='simple')body=`# ${title.trim()}\n\n## Intention\n\nDescribe the desired change.\n\n## Current behavior and proposed change\n\nDescribe the small repair and what must stay unchanged.\n\n## Proposed work\n\n- [ ] Define the repair.\n\n## Acceptance criteria\n\nDefine the relevant check.\n\n## Open questions\n\nList decisions needing owner input, or state none.\n`;
@@ -154,16 +158,16 @@ export class Store {
       const reporting=[`Work: ${path.join(this.root,parent!.path)} (${parent!.meta.id})`,...features.map(id=>{const feature=state.docs.find(d=>d.meta.id===id)!;return `Feature: ${path.join(this.root,feature.path)} (${id})`;})].join('\n');
       body=`# ${title.trim()}\n\n## Accepted behavior\n\n[Write settled behavior here.]\n\n## Implementation tasks\n\n[Write concrete tasks here.]\n\n## Acceptance criteria\n\n[Write verification criteria here.]\n\n## Scope and exclusions\n\n[Write agreed scope here.]\n\n## Verification and reporting\n\n${reporting}\n\nRead the application repository's AGENTS.md and ${path.join(this.root,'agent/README.md')}. Follow its validation restrictions. When implementation starts, set the linked Work to in_progress. Record delivered changes and actual checks in that Work, and create or update affected Feature records to describe delivered behavior, linking new records to the Work. Missing or incomplete Feature documentation does not block starting implementation. Keep verification checklists out of feature pages. Report deviations and unresolved checks; complete Work only through the documented completion workflow. Ask the owner only when a discovery materially changes scope or essential behavior, risks data, or creates a costly commitment. Continue independent scope while a blocker is open. Use initial implementation, owner testing, feedback, and targeted adjustments to refine reversible details.\n`;
     }
-    if(type==='work')body=`# ${title.trim()}\n\n## Plan\n\n### Requested change\n\nDescribe the requested change.\n\n### Current and proposed behavior\n\nDescribe what changes and what stays the same.\n\n### Scope and expected result\n\nDefine the scope and expected result.\n\n### Decisions\n\nRecord owner answers and settled behavior here; remove the questions they settle. Reference shared decisions by record ID and section.\n\n### Implementation blockers\n\nList only decisions that prevent the next concrete change, or state none. Identify the blocked scope and what can proceed independently.\n\n### Open questions\n\nAsk only questions whose answers materially change scope, essential behavior, data protection, or costly commitments; otherwise state none.\n\n### Investigation notes\n\nRecord technical investigation and supporting evidence.\n\n### Agent choices\n\nRecord chosen implementation defaults within scope; keep handoff instructions aligned when these change.\n\n### Testing observations\n\nRecord reversible details and edge cases to observe during owner testing; these do not block the initial implementation.\n`;
-    if(type==='work')body+=`\n## Implementation outcome\n\nRecord delivered changes, deviations, and remaining work after implementation.\n\n## Verification results\n\nRecord checks actually run, outcomes, and checks still pending.\n`;
-    await this.write(relative,encode({schema_version:1,id,type,title:title.trim(),...(parent?{parent:parent.meta.id}:{}),status:'draft',...(type==='work'?{work_kind:workKind,workflow_mode:workflowMode,...(homeFeature?{affected_features:[homeFeature.meta.id]}:{})}:{}),...source},body),null);
+    if(type==='work')body=`# ${title.trim()}\n\n## Current status\n\nNot started. Next: clarify essential behavior, then implement the authorized scope.\n\n## Plan\n\n### Requested change\n\nState the problem and desired observable result.\n\n### Scope and expected result\n\nDescribe essential behavior, success criteria, and exclusions.\n\n### Decisions\n\nRecord settled rules once; reference shared decisions by record ID and section.\n\n### Open questions\n\nNone. Add only material questions; identify blocked scope and continue independent work.\n`;
+    if(type==='bug')body=`# ${title.trim()}\n\n## Current status\n\nReported. Next: reproduce the problem and implement the authorized fix.\n\n## Report\n\nDescribe the actual behavior, expected result, and reproduction steps or evidence.\n\n## Plan\n\nDescribe the fix scope and success criteria. Keep decisions and material questions here.\n\n## Implementation outcome\n\nNot reported.\n\n## Verification results\n\nNot reported.\n`;
+    await this.write(relative,encode({schema_version:1,id,type,title:title.trim(),...(parent?{parent:parent.meta.id}:{}),status:'draft',...(['work','bug'].includes(type)?{...(type==='work'?{work_kind:workKind}:{} ),workflow_mode:workflowMode,...(homeFeature?{affected_features:[homeFeature.meta.id]}:{})}:{}),...source},body),null);
     return this.get(id);
   }
   async comment(id: string, expected: string, text: string, quote: string, author: Identity, actor: 'human' | 'agent' = 'human', agentName?: string, selection?: PassageSelection) {
     if (!identityValid(author) || (actor === 'agent' && !agentName)) throw new Problem('An author name and email (and agent name for agent replies) are required');
     const target = await this.get(id);
     if (target.hash !== expected) throw new Problem('Document changed; reload before commenting', 409);
-    if (!['module','feature','work','plan','analysis','implementation'].includes(target.meta.type)) throw new Problem('This record cannot receive comments');
+    if (!['module','feature','bug','bug_document','work','plan','analysis','implementation'].includes(target.meta.type)) throw new Problem('This record cannot receive comments');
     if (typeof quote !== 'string' || quote.length > 10000) throw new Problem('Invalid selected passage');
     if (selection !== undefined) {
       if (!selection || !quote.trim() || !Number.isInteger(selection.start) || !Number.isInteger(selection.end) || selection.start < 0 || selection.end <= selection.start || selection.end > target.body.length || typeof selection.source !== 'string' || selection.source.length > 10000 || target.body.slice(selection.start, selection.end) !== selection.source) throw new Problem('Selected passage is not in this document');
@@ -194,8 +198,11 @@ export class Store {
   }
   async snapshot(id: string, expected: string, reason = 'checkpoint') {
     const doc = await this.get(id);
-    if (!['work','plan','module','feature','analysis','implementation'].includes(doc.meta.type) || doc.hash !== expected) throw new Problem('Plan changed; reload before retaining a revision', 409);
-    const existing=(await this.load()).docs.find(d=>d.meta.type==='snapshot'&&d.meta.parent===id&&d.meta.source_hash===expected);
+    if (!['bug','bug_document','work','plan','module','feature','analysis','implementation'].includes(doc.meta.type) || doc.hash !== expected) throw new Problem('Plan changed; reload before retaining a revision', 409);
+    const versions=(await this.load()).docs.filter(d=>d.meta.type==='snapshot'&&d.meta.parent===id);
+    // Routine retention follows text changes; explicit checkpoints and approvals retain exact metadata.
+    const automatic=['comment','submitted_for_review','brief_preparation','brief_source_reconciliation','before_source_reconciliation','before_bug_document_consolidation','before_bug_document_archive'].includes(reason);
+    const existing=versions.find(d=>d.meta.source_hash===expected)??(automatic?versions.find(d=>d.body===doc.body&&d.meta.title===doc.meta.title&&d.meta.source_type===doc.meta.type):undefined);
     if(existing)return existing;
     const snapshotId = `REV-${expected}`;
     const relative = path.join(path.dirname(doc.path), 'revisions', `${snapshotId}.md`);
@@ -204,8 +211,8 @@ export class Store {
   }
   async submitReview(id:string,expected:string) {
     const doc=await this.get(id);
-    if(!['work','plan'].includes(doc.meta.type)||(doc.meta.type==='work'&&!markdownSection(doc.body,['plan']))||doc.hash!==expected)throw new Problem('Plan changed. Reload before submitting.',409);
-    await this.snapshot(id,expected,'submitted_for_review');
+    if(!['work','bug','plan'].includes(doc.meta.type)||(['work','bug'].includes(doc.meta.type)&&!markdownSection(doc.body,['plan']))||doc.hash!==expected)throw new Problem('Plan changed. Reload before submitting.',409);
+    if(doc.meta.status==='ready_for_review'){await this.snapshot(id,expected,'submitted_for_review');return doc;}
     await this.write(doc.path,encode({...doc.meta,status:'ready_for_review'},doc.body),expected);
     const updated=await this.get(id);
     await this.snapshot(id,updated.hash,'submitted_for_review');
@@ -225,24 +232,24 @@ export class Store {
   }
   async compare(id: string, revision: string) {
     const [current, previous] = await Promise.all([this.get(id),this.get(revision)]);
-    if (!['work','plan','module','feature','analysis','implementation'].includes(current.meta.type) || previous.meta.type !== 'snapshot' || previous.meta.parent !== id) throw new Problem('Choose a retained revision of this plan or document');
+    if (!['bug','bug_document','work','plan','module','feature','analysis','implementation'].includes(current.meta.type) || previous.meta.type !== 'snapshot' || previous.meta.parent !== id) throw new Problem('Choose a retained revision of this plan or document');
     const comparison = compareLines(previous.body,current.body);
     return { ...comparison, currentHash:current.hash, revisionId:previous.meta.id, retainedAt:previous.meta.retained_at, sourceHash:previous.meta.source_hash, added:comparison.lines.filter(l=>l.kind==='added').length, removed:comparison.lines.filter(l=>l.kind==='removed').length };
   }
   async updateWork(id:string,expected:string,input:{workflow_mode:string;status:string;affected_features:string[]}) {
     const work=await this.get(id);
-    if(work.meta.type!=='work'||work.hash!==expected)throw new Problem('Work item changed. Reload before saving.',409);
+    if(!['work','bug'].includes(work.meta.type)||work.hash!==expected)throw new Problem('Work item changed. Reload before saving.',409);
     if(!['simple','extended'].includes(input.workflow_mode)||!['draft','planning','review','ready_for_review','ready_for_implementation','needs_owner_decision','in_progress','awaiting_verification','completed','superseded','rejected'].includes(input.status))throw new Problem('Invalid work settings');
     const docs=(await this.load()).docs;
     if(!Array.isArray(input.affected_features)||input.affected_features.some(id=>!docs.some(d=>d.meta.id===id&&d.meta.type==='feature')))throw new Problem('Choose valid affected features');
-    await this.write(work.path,encode({...work.meta,workflow_mode:input.workflow_mode,status:input.status,affected_features:[...new Set(input.affected_features)]},work.body),expected);
+    await this.write(work.path,encode({...work.meta,workflow_mode:input.workflow_mode,status:input.status,affected_features:[...new Set([...(work.meta.type==='bug'?[work.meta.parent!]:[]),...input.affected_features])]},work.body),expected);
     return this.get(id);
   }
   async refreshBriefSource(id:string,expected:string,expectedPlanHash:string) {
     const brief=await this.get(id);
     if(brief.meta.type!=='implementation'||brief.hash!==expected)throw new Problem('Brief changed. Reload before updating its source.',409);
     const plan=await this.get(String(brief.meta.source_plan));
-    if(!((plan.meta.type==='plan'&&plan.meta.parent===brief.meta.parent)||(plan.meta.type==='work'&&plan.meta.id===brief.meta.parent))||plan.hash!==expectedPlanHash)throw new Problem('Plan changed. Read it before updating the source.',409);
+    if(!((plan.meta.type==='plan'&&plan.meta.parent===brief.meta.parent)||(['work','bug'].includes(plan.meta.type)&&plan.meta.id===brief.meta.parent))||plan.hash!==expectedPlanHash)throw new Problem('Plan changed. Read it before updating the source.',409);
     await this.snapshot(id,brief.hash,'before_source_reconciliation');
     const version=await this.snapshot(plan.meta.id,plan.hash,'brief_source_reconciliation');
     const meta:Meta={...brief.meta,status:'draft',source_revision_id:version.meta.id,source_plan_hash:plan.hash};
@@ -252,7 +259,7 @@ export class Store {
   }
   async recordHandoff(id:string,expected:string,revisionId:string,author:Identity,ownerInstruction?:string) {
     const work=await this.get(id);
-    if(work.meta.type!=='work'||work.hash!==expected)throw new Problem('Work item changed. Reload before recording the handoff.',409);
+    if(!['work','bug'].includes(work.meta.type)||work.hash!==expected)throw new Problem('Work item changed. Reload before recording the handoff.',409);
     if(!identityValid(author))throw new Problem('An owner profile is required.');
     const version=await this.get(revisionId);
     const brief=await this.get(String(version.meta.parent));
@@ -263,7 +270,7 @@ export class Store {
   }
   async finishWork(id:string,expected:string,verificationState:string,ownerInstruction?:string,featureUpdates:{id:string;hash:string;reason:string}[]=[]) {
     const work=await this.get(id);
-    if(work.meta.type!=='work'||work.hash!==expected)throw new Problem('Work item changed. Reload before recording completion.',409);
+    if(!['work','bug'].includes(work.meta.type)||work.hash!==expected)throw new Problem('Work item changed. Reload before recording completion.',409);
     if(!['passed','pending','accepted_limitations'].includes(verificationState))throw new Problem('Declare verification as passed, pending, or accepted_limitations.');
     const docs=(await this.load()).docs;const summary=summarizeWork(work,docs);
     if(!summary.outcome||!summary.verification||/^not reported/i.test(summary.outcome)||/^not reported/i.test(summary.verification))throw new Problem('Record an implementation outcome and actual verification results first.');
@@ -291,15 +298,15 @@ export class Store {
     while(cursor.meta.parent&&!scope.has(cursor.meta.parent)) { const parent=state.docs.find(d=>d.meta.id===cursor.meta.parent);if(!parent)break;scope.set(parent.meta.id,parent);cursor=parent; }
     for(const item of [...scope.values()]) for(const related of item.meta.related??[]) { const other=state.docs.find(d=>d.meta.id===related);if(other)scope.set(related,other); }
     if(primary.meta.type==='plan') for(const sibling of state.docs.filter(d=>d.meta.parent===primary.meta.parent && d.meta.type==='analysis'))scope.set(sibling.meta.id,sibling);
-    if(['work','feature','module'].includes(primary.meta.type)) {
+    if(['work','bug','feature','module'].includes(primary.meta.type)) {
       let frontier=[primary.meta.id];
       for(let depth=0;depth<3;depth++) {
-        const children=state.docs.filter(d=>frontier.includes(d.meta.parent??'')&&['feature','work','plan','analysis'].includes(d.meta.type));
+        const children=state.docs.filter(d=>frontier.includes(d.meta.parent??'')&&['feature','bug','bug_document','work','plan','analysis'].includes(d.meta.type));
         children.forEach(d=>scope.set(d.meta.id,d));frontier=children.map(d=>d.meta.id);
       }
     }
     const featureIds=new Set([...scope.values()].filter(d=>d.meta.type==='feature').map(d=>d.meta.id));
-    for(const work of state.docs.filter(d=>d.meta.type==='work'&&!closedWorkStatuses.includes(String(d.meta.status)))) {
+    for(const work of state.docs.filter(d=>['work','bug'].includes(d.meta.type)&&!closedWorkStatuses.includes(String(d.meta.status)))) {
       const overview=summarizeWork(work,state.docs);
       if(scope.has(work.meta.id)||overview.affectedFeatureIds.some(id=>featureIds.has(id))) {
         scope.set(work.meta.id,work);
@@ -316,7 +323,7 @@ export class Store {
       `## Selected document\n\n${selected.body}`];
     if(focus.meta.type==='snapshot') parts.push('## Revision note\n\nThe selected document is a retained snapshot. Comments below target their original reviewed revisions and may concern a newer draft; reconcile them explicitly rather than modifying this snapshot.');
     parts.push('## Open review threads\n\n'+(reviews.length?reviews.map(r=>`### ${r.meta.id}\nFile: ${path.join(this.root,r.path)}\nTarget: ${r.meta.target_id}\nReviewed hash: ${r.meta.target_hash}\nThread hash: ${r.hash}\nOriginal passage: ${String(r.meta.quote||'(document-level comment)')}\n\n${messages(r).map(m=>`${m.kind.toUpperCase()} — ${m.actor_kind==='agent'?m.agent_name:m.author.name}\n${m.body}`).join('\n\n')}`).join('\n\n'): 'No open threads in the selected context.'));
-    parts.push('## Reporting\n\nCreate Works directly under Modules and link affected Features across Modules. Missing Feature documentation does not block starting Work. Record owner answers as decisions and remove settled questions. Ask only about material scope, behavior, data, or costly commitments; choose routine technical details within scope. Keep blockers separate from investigation and testing observations. Proceed with independent scope and refine reversible details through implementation, owner testing, feedback, and targeted adjustments. Keep shared decisions in one canonical record and reference them. Update the current draft when planning. Preserve review history. Once the requested work is done, use review resolve with one informative answer explaining the result or rationale; this both posts the answer and marks the thread addressed. Do not post a separate reply followed by a resolution summary. Use review reply only when feedback still needs work or an answer from the owner. Resolution is not approval. Keep accepted intent separate from observed implementation. Record source revisions and distinguish inspected tests from executed tests. Read the target project’s AGENTS.md before changing or running its application.');
+    parts.push('## Reporting\n\nCreate Works under Modules and Bugs under Features. Keep all bug documentation in the Bug record. Keep the bug report, fix plan, progress, and verification in the Bug; do not create a separate Work for a bug. Missing Feature documentation does not block starting Work. Record owner answers as decisions and remove settled questions. Ask only about material scope, behavior, data, or costly commitments; choose routine technical details within scope. Keep blockers separate from investigation and testing observations. Proceed with independent scope and refine reversible details through implementation, owner testing, feedback, and targeted adjustments. Keep shared decisions in one canonical record and reference them. Update the current draft when planning. Preserve review history. Once the requested work is done, use review resolve with one informative answer explaining the result or rationale; this both posts the answer and marks the thread addressed. Do not post a separate reply followed by a resolution summary. Use review reply only when feedback still needs work or an answer from the owner. Resolution is not approval. Keep accepted intent separate from observed implementation. Record source revisions and distinguish inspected tests from executed tests. Read the target project’s AGENTS.md before changing or running its application.');
     return { text:parts.join('\n\n'), hash:focus.hash, openThreads:reviews.length };
   }
   async shortBriefing(id: string, expected?: string) {
@@ -326,7 +333,9 @@ export class Store {
       const docs=(await this.load()).docs;
       const assessment=inspectBrief(doc,docs);
       const ready=briefPrepared(doc)&&assessment.drift==='current';
-      const revision = ready ? docs.find(d=>d.meta.type==='snapshot' && d.meta.parent===id && d.meta.source_hash===doc.hash) : undefined;
+      const versions=docs.filter(d=>d.meta.type==='snapshot'&&d.meta.parent===id);
+      const evidenceMetadata=(meta:Meta)=>Object.fromEntries(Object.entries(meta).filter(([key])=>!['id','type','parent','source_type','source_path','source_hash','snapshot_reason','retained_at','updated_by','updated_at','update_reason'].includes(key)));
+      const revision=ready?(versions.find(d=>d.meta.source_hash===doc.hash)??versions.find(d=>d.meta.source_type===doc.meta.type&&d.body===doc.body&&(!d.meta.source_path||d.meta.source_path===doc.path)&&isDeepStrictEqual(evidenceMetadata(d.meta),evidenceMetadata(doc.meta)))):undefined;
       return { hash:doc.hash, openThreads:0, text:[
         ready ? `Implement ${doc.meta.title} when the owner manually hands you this brief for implementation. No separate approval record is required.` : `Review the draft implementation brief for ${doc.meta.title}. Do not execute this draft.`,
         `Documentation workspace: ${this.root}`,
@@ -344,7 +353,7 @@ export class Store {
       `Read ${path.join(this.root,'AGENTS.md')}.`,
       `Target: ${path.join(this.root,doc.path)} (${doc.meta.id})`,
       `Version viewed: ${doc.hash}`,
-      `Use context ${doc.meta.id} --compact to locate related records; batch required reads with read-many --format text. Read ${detailed.openThreads} open discussion${detailed.openThreads===1?'':'s'}; update relevant records and answer addressed comments with review resolve in one message. Use review reply only for discussion that remains open.`
+      `Use context ${doc.meta.id} --current for intent and related records; retrieve relevant sections and discussions on demand. There are ${detailed.openThreads} open discussion${detailed.openThreads===1?'':'s'}; update relevant records and answer addressed comments with review resolve in one message. Use review reply only for discussion that remains open.`
     ].join('\n') };
   }
   async contextRecords(id: string, expanded = false) {
@@ -358,15 +367,15 @@ export class Store {
     while (cursor.meta.parent && !selected.has(cursor.meta.parent)) { const parent = docs.find(d => d.meta.id === cursor.meta.parent); if (!parent) break; selected.set(parent.meta.id, parent); cursor = parent; }
     for (const d of [...selected.values()]) for (const related of d.meta.related ?? []) { const r = docs.find(x => x.meta.id === related); if (r) selected.set(related, r); }
     if(expanded&&primary.meta.type==='plan')for(const sibling of docs.filter(d=>d.meta.parent===primary.meta.parent&&d.meta.type==='analysis'))selected.set(sibling.meta.id,sibling);
-    if(expanded&&['work','feature','module'].includes(primary.meta.type)) {
+    if(expanded&&['work','bug','feature','module'].includes(primary.meta.type)) {
       let frontier=[primary.meta.id];
       for(let depth=0;depth<3;depth++) {
-        const children=docs.filter(d=>frontier.includes(d.meta.parent??'')&&['feature','work','plan','analysis'].includes(d.meta.type));
+        const children=docs.filter(d=>frontier.includes(d.meta.parent??'')&&['feature','bug','bug_document','work','plan','analysis'].includes(d.meta.type));
         children.forEach(d=>selected.set(d.meta.id,d));frontier=children.map(d=>d.meta.id);
       }
     }
     const featureIds=new Set([...selected.values()].filter(d=>d.meta.type==='feature').map(d=>d.meta.id));
-    for(const work of docs.filter(d=>d.meta.type==='work'&&!closedWorkStatuses.includes(String(d.meta.status)))) {
+    for(const work of docs.filter(d=>['work','bug'].includes(d.meta.type)&&!closedWorkStatuses.includes(String(d.meta.status)))) {
       const summary=summarizeWork(work,docs);
       if(work.meta.id===id||summary.affectedFeatureIds.includes(id)||(expanded&&(selected.has(work.meta.id)||summary.affectedFeatureIds.some(id=>featureIds.has(id))))) {
         selected.set(work.meta.id,work);
@@ -374,17 +383,17 @@ export class Store {
         for(const child of docs.filter(d=>d.meta.parent===work.meta.id&&['plan','analysis'].includes(d.meta.type)))selected.set(child.meta.id,child);
       }
     }
-    for (const d of docs) if ((d.meta.parent === id && ['plan','analysis','task'].includes(d.meta.type)) || (d.meta.type === 'review' && selected.has(String(d.meta.target_id)) && d.meta.status === 'open')) selected.set(d.meta.id, d);
+    for (const d of docs) if ((d.meta.parent === id && ['bug','bug_document','plan','analysis','task'].includes(d.meta.type)) || (d.meta.type === 'review' && selected.has(String(d.meta.target_id)) && d.meta.status === 'open')) selected.set(d.meta.id, d);
     return [...selected.values()];
   }
-  async compactContext(id: string, known: Record<string, string> = {}) {
+  async compactContext(id: string, known: Record<string, string> = {}, current = false) {
     const records = await this.contextRecords(id,true);
     const target = records.find(d => d.meta.id === id)!;
     return [
       '# Context manifest',
-      'All related records are listed with current hashes. Supporting bodies are not included. Read applicable constraints, affected features, active work, and open discussions before making decisions. Unchanged records may be reused only if their exact content is already available in this session.',
-      JSON.stringify(records.map(d => ({ ...recordIndex(d), available: known[d.meta.id] === d.hash ? 'unchanged' : d.meta.id === id ? 'included' : 'read_on_demand' }))),
-      ...(known[id] === target.hash ? [] : [readableRecord(target)])
+      'All related records are listed with current hashes. Supporting bodies are not included. Retrieve applicable constraints, relevant feature sections, active intent, and task-relevant open discussions. History and investigation are available on demand. Body size estimates use characters / 4, not a model tokenizer. Unchanged records may be reused only if their exact content is already available in this session.',
+      JSON.stringify(records.map(d => ({ ...recordIndex(d), body_size: contextSize(d.body), available: known[d.meta.id] === d.hash ? 'unchanged' : d.meta.id === id ? 'included' : 'read_on_demand' }))),
+      ...(known[id] === target.hash ? [] : [current ? currentRecord(target) : readableRecord(target)])
     ].join('\n\n');
   }
   async context(id: string, full = false) {

@@ -12,7 +12,7 @@ export function markdownSection(body:string,names:string[]):string {
   return heading?body.slice(heading.content,heading.end).trim():'';
 }
 export function planText(doc:Doc):string {
-  return doc.meta.type==='work'||(doc.meta.type==='snapshot'&&doc.meta.source_type==='work')?markdownSection(doc.body,['plan']):doc.body;
+  return ['work','bug'].includes(doc.meta.type)||(doc.meta.type==='snapshot'&&['work','bug'].includes(String(doc.meta.source_type)))?markdownSection(doc.body,['plan']):doc.body;
 }
 
 /** Discussion and testing notes can evolve without changing handed-off instructions. */

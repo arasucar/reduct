@@ -44,8 +44,10 @@ test('Work always has a Module home and Feature documentation is optional at sta
   const work=await store.create('work','New behavior',module.meta.id);
   assert.equal(work.meta.parent,module.meta.id);
   assert.ok(work.path.startsWith('modules/orders/work/'));
-  assert.ok(work.body.includes('### Implementation blockers'));
-  assert.ok(work.body.includes('### Testing observations'));
+  assert.ok(work.body.includes('## Current status'));
+  assert.ok(work.body.includes('## Plan'));
+  assert.ok(!work.body.includes('### Investigation notes'));
+  assert.ok(!work.body.includes('## Verification results'));
   await store.updateWork(work.meta.id,work.hash,{workflow_mode:'simple',status:'in_progress',affected_features:[]});
   const feature=await store.create('feature','Tracking',module.meta.id);
   const linked=await store.create('work','Legacy caller',feature.meta.id);
